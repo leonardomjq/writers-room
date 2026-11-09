@@ -572,12 +572,11 @@ def card():
         raise SystemExit('no chapters/ch01.md yet')
     name = meta.get('title') or story.title_of(first)
     private = body(read(f'{story.BRIEFS}/private.md'))
-    port = story.config()['serve'].get('port', 5005)
     data = {'name': name, 'description': meta.get('blurb', ''), 'personality': '', 'scenario': '',
             'first_mes': first, 'mes_example': '', 'creator_notes': (
-                'Play with the writers-room author: connect SillyTavern to its local endpoint (Chat Completion, '
-                f'Custom OpenAI-compatible, http://127.0.0.1:{port}/v1, model "author"). For Private scenes, switch '
-                'to your usual API; switch back to continue the story.'),
+                'This story plays with writers-room, which writes each chapter on your Claude or ChatGPT plan: '
+                'https://github.com/leonardomjq/writers-room . Start the room (python3 engine/play.py) and use the '
+                'Author connection profile.'),
             'system_prompt': private, 'post_history_instructions': '', 'alternate_greetings': [],
             'tags': ['writers-room', 'web novel'], 'creator': 'writers-room', 'character_version': '1',
             'extensions': {'writers_room': {'v': 1}}}

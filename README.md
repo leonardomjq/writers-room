@@ -6,19 +6,37 @@
 
 You read a chapter. You press Continue, type what you do, or pick one of three roads at a crossroads. A few minutes later the next chapter is there, and the world has moved on its own.
 
-It's one opinionated way of playing, tuned over weeks of real play. You change it by asking, not through settings.
+**Why this exists.** I played AI roleplay in SillyTavern every night for weeks, and every chapter or two something felt off: a line nobody would say, a fact that changed, a world that politely did whatever I asked. I kept stopping to fix it, until fixing had replaced playing. This is the setup that finally let me just read. I don't play much anymore, so I'm sharing it the way I used it: one opinionated way of playing, not a toolkit. It's a side project with no roadmap, but issues and stories about how it went are welcome.
 
-## What you get
+## What the room does
 
-- **An author, not a chatbot.** It keeps a secret bible of the world (who wants what, what moves while you're not looking, what was planted for later) and plans a few chapters ahead.
-- **A writers' room on every chapter.** You watch these steps on the page while it works:
-  1. **Plan**: what happens, who wants what, what it costs.
-  2. **Write**: one writer, one voice.
-  3. **Read as you**: a fresh model reads it knowing only what you know, and marks every line that would pull you out.
-  4. **Mend**: the writer fixes exactly those lines. The rest stays its words.
-  5. **Check**: the author holds it against the bible and every chapter before.
-- **SillyTavern that reads like a novel site.** A book style, chapter headings, a Play bar, your place kept, and a recap when you come back after a while. Only on writers-room stories. Your other chats stay as they are.
-- **Your own model for what the plans won't write.** See [Private scenes](#private-scenes).
+An author keeps a secret bible of the world (who wants what, what moves while you're not looking, what was planted for later) and plans a few chapters ahead. Then every chapter goes through five steps, and you watch them on the page while it works:
+
+1. **Plan**: what happens, who wants what, what it costs.
+2. **Write**: one writer, one voice.
+3. **Read as you**: a fresh model reads it knowing only what you know, and marks every line that would pull you out.
+4. **Mend**: the writer fixes exactly those lines. The rest stays its words.
+5. **Check**: the author holds it against the bible and every chapter before.
+
+Step 3 is the one that changed everything. From a real draft:
+
+> **Draft:** "On the fifth day two people went past you on Canal Street with a cart."
+>
+> **Reader:** She only sees light in living things, and a cart has no light. She was also across the river, so how does she know?
+
+The author can't catch that, because the author knows too much. [More of what it catches](examples/what-the-room-catches.md), and [two full chapters](examples/) to judge for yourself.
+
+In SillyTavern you get a book style, chapter headings, a Play bar, your place kept, and a recap when you come back after a while. All of it only on writers-room stories; your other chats stay as they are.
+
+## Its opinions
+
+- **Plain prose.** The default reader wants common words and no idioms. Tell it if you want richer ones.
+- **You decide rarely, and big.** One crossroads every few chapters, and you can type anything in between.
+- **A story, not a game.** No stats or bars on screen. Power shows in what the hero can do and how the world treats them.
+- **A world that pushes back.** People want things, a no stands, and danger is real.
+- **One version of each chapter.** No swipes. If you don't like it, say why and it's written again.
+
+The default taste is web novels and progression fantasy. You change it by asking: "more romance, less fighting" works, in a Note or to your agent. [GUIDE.md](GUIDE.md) explains why each part exists, and it's the best read in here if you're into how AI writing goes wrong.
 
 ## What it isn't
 
@@ -26,13 +44,13 @@ It's one opinionated way of playing, tuned over weeks of real play. You change i
 - **Not a new frontend.** It's SillyTavern, plus an extension and a small engine.
 - **Not instant.** A chapter takes about 5 to 9 minutes, unless it was written ahead while you read.
 - **Not free.** It needs a Claude or ChatGPT plan, and it uses a lot of it ([Usage](#usage)). Don't buy a plan just for this before you've read the [example chapters](examples/).
-- **Not local.** Your own model plays Private scenes, but it can't run the room ([Experiments](#experiments)).
+- **Not local.** Your own model plays [Private scenes](#private-scenes), but it can't run the room ([Experiments](#experiments)).
 - **Not hosted.** It runs on your computer, which has to stay on while chapters are written.
 
 ## What you need
 
-- **SillyTavern**, on the computer that runs this (tested on 1.19).
-- **Claude Code or Codex CLI**, signed in with your plan. One is enough. Claude writes the strongest chapters, on Opus; on a plan without it, setup falls back to Sonnet. Codex is solid and more plain. With both, setup spreads the jobs.
+- [**SillyTavern**](https://github.com/SillyTavern/SillyTavern), on the computer that runs this (tested on 1.19).
+- [**Claude Code**](https://docs.claude.com/en/docs/claude-code/overview) or [**Codex CLI**](https://github.com/openai/codex), signed in with your plan. One is enough. Claude writes the strongest chapters, on Opus; on a plan without it, setup falls back to Sonnet. Codex is solid and more plain. With both, setup spreads the jobs.
 - **Python 3.11 or newer**, on macOS or Linux (on Windows, run this and SillyTavern in WSL).
 - Optional: **your own model** in SillyTavern, for Private scenes.
 
@@ -123,6 +141,20 @@ A chapter uses roughly 250 to 350k tokens on your plan: most of it on the author
 
 It runs the official CLIs under your own login, so your provider's terms and limits apply.
 
+## Questions
+
+**Why not just a preset?** A preset changes how one model answers. It can't keep secrets from the writer, plan ahead and plant things, or have someone who knows only what you know read the chapter before you do.
+
+**How many chapters do I get on a $20 plan?** A rough estimate: a few dozen a week on ChatGPT with Codex, and a handful per sitting on Claude, maybe 10 to 20 a week. Limits change and differ by plan, so watch your usage for the first few chapters.
+
+**Can I run it on OpenRouter or my own API?** For Private scenes, yes. For the room, only as an [experiment](#experiments).
+
+**Does it do NSFW?** Through Private, on your own model. Chapters stop at the door. Adults only.
+
+**Where does my story go?** It stays in this folder. The only things sent anywhere are the prompts to your own Claude, Codex and Private models. There's no telemetry.
+
+**Will it mess up my other chats?** No. It only acts on writers-room cards, and [removing it](#day-to-day) takes a minute.
+
 ## When something's off
 
 | You see | What to do |
@@ -132,10 +164,6 @@ It runs the official CLIs under your own login, so your provider's terms and lim
 | "No chapter this time" | It says why. For a usage limit, send again once it resets |
 | No Play bar | Refresh SillyTavern, and check you're on a writers-room card |
 | Anything else | `.run/logs/` has a log for every step. Or ask your agent in this folder what happened |
-
-## Make it yours
-
-Say it in a Note, or tell your agent ("more romance, less fighting", "my English is fluent, use richer words"). [GUIDE.md](GUIDE.md) explains why each part exists, so you can change the briefs without breaking what works.
 
 ## Experiments
 
@@ -147,7 +175,7 @@ Say it in a Note, or tell your agent ("more romance, less fighting", "my English
 - `engine/`: `setup.py` (first run), `play.py` (the room), `run.py` (the author's commands), `serve.py` (the endpoint SillyTavern talks to), `providers.py` (model calls), `tells.py` (the counter), `author.py` (the experiment above), `story.py`. Python standard library only.
 - `briefs/`: the instructions for the author, writer, reader, mender and second author, and the default reader.
 - `stories/`: the demo, and a template for your own.
-- `examples/`: two chapters, not edited by hand, one by Claude and one by Codex.
+- `examples/`: two chapters, not edited by hand, one by Claude and one by Codex, and what the room catches.
 - `AGENTS.md` (`CLAUDE.md` links to it): the manual your agent follows.
 - `tests/`: `check.py` and `room.py` run everything against a scripted model (`fake_model.py`), with no AI and no tokens.
 

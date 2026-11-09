@@ -11,3 +11,5 @@ marked lines, and the author checked it.
   `stories/seventh-noon/chapters/ch01.md`.
 
 Claude's prose is the stronger of the two; Codex's is more plain.
+
+[`what-the-room-catches.md`](what-the-room-catches.md) shows what the reader marked on a real draft, and what changed.
