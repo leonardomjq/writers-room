@@ -1,0 +1,30 @@
+# writers-room config. The author writes config.toml for you on the first run; this file shows every setting.
+
+# The story you are playing: a folder under stories/.
+story = "seventh-noon"
+
+# The agent that plays the author during play (engine/play.py starts one fresh run of it per move).
+[author]
+agent = "codex"           # "codex" or "claude": the agent you have
+
+# Who does each job. Each one is "codex" (the Codex CLI, on your ChatGPT plan), "claude" (the Claude Code CLI, on your
+# Claude plan) or "openai" (any OpenAI-compatible API: OpenRouter, a local model, ...).
+[roles]
+writer = "codex"          # writes every chapter: one voice for the whole book
+reader = "codex"          # reads each chapter as the player; a different model family than the writer is best
+mender = "writer"         # mends the chapter with small edits; "writer" means the same as the writer (one voice)
+second_author = "codex"   # reviews each stretch's plans before they are written, secrets included
+
+[codex]
+model = ""                # empty: your Codex default
+
+[claude]
+model = "opus"
+
+[openai]
+base_url = "https://openrouter.ai/api/v1"   # or http://127.0.0.1:1234/v1 for LM Studio, http://127.0.0.1:11434/v1 for Ollama
+api_key_env = "OPENROUTER_API_KEY"          # the NAME of the environment variable that holds your key, not the key
+model = ""                                  # e.g. "deepseek/deepseek-chat"
+
+[serve]
+port = 5005               # SillyTavern connects to http://127.0.0.1:<port>/v1

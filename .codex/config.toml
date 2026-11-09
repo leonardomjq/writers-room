@@ -1,0 +1,5 @@
+# writers-room: the author runs the engine, which calls your models and opens a local port for SillyTavern.
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = true
