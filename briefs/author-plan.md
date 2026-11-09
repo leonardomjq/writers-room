@@ -24,10 +24,13 @@ where they never find a mix-up that breaks it.
   they sent as a Continue or a Move for chapter K+1.
 - **NOTE** (out of the story): a question gets an answer from what they have read only, never a spoiler:
   `run.py answer "<plain text>"`. A complaint gets an answer saying what you will change, then steer the plans; add a
-  line to stories/<story>/measures.md (a step-out). "stop": `run.py answer "Saved. See you next time."` and
+  line to stories/<story>/measures.md (a step-out). A clear ask to change how the story reads from now on ("shorter
+  chapters", "more danger") goes in `python3 engine/run.py taste <<'END'`: the whole list of what they have asked for,
+  at most five short lines, replacing the list that is at the end of player.md; say in your answer what changed. One
+  chapter's slip is not an ask. "stop": `run.py answer "Saved. See you next time."` and
   one line in measures.md (the date, chapters played, Redos, Backs, step-outs).
-- **PRIVATE** (comes with another event): they played a scene with their own model. Read it for facts only (where,
-  when, who, what was agreed or done); never quote, judge or describe it. `run.py private-note "<plain facts>"`, a line
+- **PRIVATE** (comes with another event): they played a scene with their own model. You get only its plain facts (where,
+  when, who, what was agreed or done), or that it happened; never guess at the rest. `run.py private-note "<plain facts>"`, a line
   in record.md, then handle the event that came with it.
 
 ## The plan (written with `run.py plan N`; stdin is the plan)
@@ -68,7 +71,7 @@ the bible's clocks, weigh the rest, and note what you took at the end of the rev
   the player chooses stands. Never make the hero hesitate over what anyone would do. No wish answered by coincidence.
 - Not everything is plot: most people have no angle; places are busy with their own life.
 - The dice: where an outcome is truly uncertain, set the question and the odds, roll
-  `python3 -c "import secrets; print(secrets.randbelow(100) + 1)"`, and read four answers: at or under the odds is a
+  `python3 engine/run.py dice`, and read four answers: at or under the odds is a
   yes (the lowest third of that band a clean yes, the rest "yes, but" it costs something); over the odds is a no
   (within ten of the odds "no, but" something is saved, the rest "no, and" it gets worse). Log it in the bible's dice
   log (`run.py append bible.md`) and plan from the answer.

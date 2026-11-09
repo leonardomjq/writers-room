@@ -30,6 +30,8 @@ never needs to.
   python3 engine/run.py append FILE  (stdin)         add to a story file (bible.md, cast.md, hero.md, record.md, ...)
   python3 engine/run.py record N  (stdin)            facts that became true in chapter N (a NOW: line sets Now)
   python3 engine/run.py sofar  (stdin)               replace the story so far
+  python3 engine/run.py taste  (stdin)               what the player asked for, at most five lines, replaced whole
+  python3 engine/run.py dice                         a number from 1 to 100
 """
 import json, os, random, re, shutil, signal, sys, time
 
@@ -123,7 +125,7 @@ def writer_hero(sdir):
 
 
 def player():
-    return body(read(f'{story.BRIEFS}/player.md'))
+    return body(read(story.player_path()))
 
 
 def writer_prompt(sdir, n, move=None, again=None):
@@ -369,6 +371,7 @@ def pipeline(n, move=None, again=None, reread=False):
         if not good_chapter(draft):
             raise SystemExit(f'no chapter to read again at chapters/ch{nn(n)}.md')
     else:
+        story.room('writing')
         draft, writer = providers.call('writer', writer_prompt(sdir, n, move, again), 'medium', cfg, f'ch{nn(n)} write')
         if draft.startswith('ERROR') and not providers.LIMIT.search(draft):
             log.append(f'the writer failed once ({draft[7:160].strip()}); trying again')
@@ -380,10 +383,18 @@ def pipeline(n, move=None, again=None, reread=False):
         if not draft.lstrip().startswith('# '):
             draft = '# ' + draft.lstrip()
         draft = re.sub(r'^#\s+Chapter\s+\d+\s*[:.-]\s*', '# ', draft)    # a title copied from the plan's heading
+        if not good_chapter(draft) and not draft.startswith('ERROR'):       # some models stop early: one more try, told so
+            log.append(f'the writer stopped at {len(draft.split())} words; trying again')
+            longer = writer_prompt(sdir, n, move, again) + f'\n\nThe chapter must be at least {MIN_WORDS + 300} words long.'
+            again_draft, writer = providers.call('writer', longer, 'medium', cfg, f'ch{nn(n)} write')
+            if not again_draft.startswith('ERROR'):
+                again_draft = re.sub(r'^```\w*\n|\n```\s*$', '', again_draft.strip())
+                draft = again_draft if again_draft.lstrip().startswith('# ') else '# ' + again_draft.lstrip()
         if not good_chapter(draft):
-            raise SystemExit(f'the writer returned something too short to be a chapter: {draft[:400]}')
+            raise SystemExit(f'the writer returned something too short to be a chapter ({len(draft.split())} words)')
         write(f'{out}-draft.md', draft)
     t1 = time.time()
+    story.room('reading')
     reply, reader = providers.call('reader', reader_prompt(sdir, n, draft, move, crossroads(p)), 'medium', cfg,
                                    f'ch{nn(n)} read')
     reader_ok = not reply.startswith('ERROR')
@@ -394,6 +405,7 @@ def pipeline(n, move=None, again=None, reread=False):
     t2 = time.time()
     final, how, mender, applied, skipped = draft, 'none', None, 0, []
     if reader_ok and needs_mending(notes, hits):
+        story.room('mending')
         mreply, mender = providers.call('mender', mender_prompt(sdir, n, move, draft, notes, hits, p), 'medium', cfg,
                                         f'ch{nn(n)} mend')
         if mreply.startswith('ERROR'):
@@ -511,6 +523,7 @@ def release(n, event=None, quiet=False):
     if ev:
         write(story.reply_path(ev['id']), text)
         story.update_event(ev['id'], done=True, answered_with=f'chapter {n}')
+    story.publish()
     if not quiet:
         print(f'released chapter {n} "{story.title_of(text)}"' + (f' (answers {ev["kind"]} {ev["id"]})' if ev else
               ' (no open event: it waits for the next request)'))
@@ -538,6 +551,7 @@ def back(n):
     if not nxt or not nxt.get('before'):
         raise SystemExit(f'no snapshot from before chapter {n + 1} (was chapter {n + 1} released?)')
     story.restore(sdir, nxt['before'])
+    story.publish()
     print(f'the story is back to after chapter {n}: plans, record, sheets and released list as they were then. '
           f'Chapters written after it are void.')
 
@@ -566,7 +580,7 @@ def card():
                 'to your usual API; switch back to continue the story.'),
             'system_prompt': private, 'post_history_instructions': '', 'alternate_greetings': [],
             'tags': ['writers-room', 'web novel'], 'creator': 'writers-room', 'character_version': '1',
-            'extensions': {}}
+            'extensions': {'writers_room': {'v': 1}}}
     write_json(f'{sdir}/card.json', {'spec': 'chara_card_v2', 'spec_version': '2.0', 'data': data})
     rel = story.released(sdir)
     if not any(r.get('nn') == 1 for r in rel):
@@ -576,6 +590,7 @@ def card():
         s = story.stamp(sdir, 1) or {'n': 1}
         s.update(checked=True, released=True, checked_sha=story.text_sha(first))
         write_json(f'{sdir}/chapters/ch01.json', s)
+    story.publish()
     print(f'card written: stories/{os.path.basename(sdir)}/card.json ("{name}"); chapter 1 is its first message')
 
 
@@ -587,13 +602,13 @@ def new(sid, title):
         raise SystemExit(f'stories/{sid} already exists')
     shutil.copytree(f'{story.ROOT}/stories/_new', dest)
     write_json(f'{dest}/story.json', {'title': title, 'blurb': ''})
-    print(f'stories/{sid} created. Set story = "{sid}" in config.toml, then fill it (AGENTS.md, A new story).')
+    print(f'stories/{sid} created. Set story = "{sid}" in config.toml, then fill it.')
 
 
 def status():
     cfg = story.config()
     if cfg.get('missing'):
-        print('NO CONFIG: first run. Follow AGENTS.md, First run.')
+        print('NO CONFIG: first run. Run python3 engine/setup.py (AGENTS.md, First run).')
         return
     sdir = story.story_dir(cfg)
     rel = story.released(sdir)
@@ -607,6 +622,9 @@ def status():
             if not s.get('released'):
                 print(f'written, not released: chapter {s.get("n")} (checked: {s.get("checked")}, move: '
                       f'{s.get("move")!r}, follows: {s.get("follows")})')
+                if s.get('checked'):
+                    print(f'  The player has NOT read chapter {s.get("n")}: the record and story so far include it. '
+                          'Never tell them anything from it.')
     lock = read_json(story.run_path(LOCK))
     if lock and alive(int(lock.get('pid', 0))):
         print(f'a pipeline is running: chapter {lock.get("n")} since {lock.get("at")}')
@@ -654,6 +672,7 @@ def pack(kind='plan', n=None):
             if os.path.exists(review):
                 add(f'plans/{plans[-1][:-3]}-review.md (the second author)', read(review))
         add('hero.md', read(f'{sdir}/hero.md'))
+        add('the reader (player.md)', player())
         add('story-so-far.md', read(f'{sdir}/story-so-far.md'))
         add('people on cast.md (sections exist for these)', ', '.join(re.findall(r'(?m)^## (.+)$', read(f'{sdir}/cast.md'))))
         if last:
@@ -752,12 +771,37 @@ def plan_and_queue(n, text, move=None, again=None):
 
 def book(n, text):
     """After the check, in one step: shelve chapter n (with the Back snapshot), then the bookkeeping. The text holds
-    one fact per line, a NOW: line, then a line SO FAR: followed by the whole story so far."""
+    one fact per line, a NOW: line, a LAST TIME: line (the recap the page shows someone coming back later, once this
+    chapter is released), then a line SO FAR: followed by the whole story so far."""
     shelve(n)
     head, _, so_far = text.partition('SO FAR:')
+    recap = re.search(r'(?mi)^\s*LAST TIME:\s*(.+)$', head)
+    if recap:
+        head = head[:recap.start()] + head[recap.end():]
+        sdir = story.story_dir()
+        s = story.stamp(sdir, n)
+        s['recap'] = recap.group(1).strip()
+        write_json(f'{sdir}/chapters/ch{nn(n)}.json', s)
     record_add(n, head)
     if so_far.strip():
         sofar(so_far)
+
+
+ASKED = 'Asked for by the player (these beat anything above):'
+
+
+def taste(text):
+    """What the player asked for in plain words ("shorter chapters"), kept in their own player.md: at most five lines,
+    replaced whole each time, so it can never grow into a pile of rules."""
+    path = f'{story.ROOT}/player.md'
+    current = read(story.player_path()).split(ASKED)[0].rstrip()
+    lines = [l.strip().lstrip('- ').strip() for l in text.strip().splitlines() if l.strip()][:5]
+    write(path, current + ('\n\n' + ASKED + '\n' + '\n'.join(f'- {l}' for l in lines) if lines else ''))
+    print(f'player.md: {len(lines)} asks kept')
+
+
+def dice():
+    print(random.SystemRandom().randint(1, 100))
 
 
 def queue_review(stretch):
@@ -823,6 +867,10 @@ def main(args):
         record_add(int(args[1]), sys.stdin.read())
     elif cmd == 'sofar':
         sofar(sys.stdin.read())
+    elif cmd == 'taste':
+        taste(sys.stdin.read())
+    elif cmd == 'dice':
+        dice()
     elif cmd == 'queue-review' and len(args) == 2:
         queue_review(int(args[1]))
     elif cmd in ('chapter', 'prompt') and len(args) >= 2:

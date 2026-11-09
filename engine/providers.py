@@ -9,7 +9,7 @@ import json, os, re, subprocess, tempfile, time, urllib.error, urllib.request
 import story
 
 SEALED = os.path.join(tempfile.gettempdir(), 'writers-room-sealed')
-LIMIT = re.compile(r'usage limit|rate limit|limit reached|\bresets? (?:at|in)\b|out of (?:extra )?usage|quota', re.I)
+LIMIT = re.compile(r'usage limit|rate limit|limit reached|hit your .{0,20}limit|\bresets? (?:at|in)\b|out of (?:extra )?usage|quota', re.I)
 EFFORTS = ('low', 'medium', 'high')
 
 
@@ -94,11 +94,14 @@ def by_claude(prompt, effort='medium', model='opus', timeout=1500):
     return text, usage
 
 
+CONTEXT_NEEDED = 40000         # about 20k for the longest prompts plus room for the answer
+
+
 def by_openai(prompt, effort='medium', base_url='', api_key_env='', model='', timeout=1500):
     key = os.environ.get(api_key_env or '', '')
     if not base_url or not model:
         return 'ERROR: [openai] needs base_url and model in config.toml', {}
-    if not key and 'localhost' not in base_url and '127.0.0.1' not in base_url:
+    if not key and api_key_env and 'localhost' not in base_url and '127.0.0.1' not in base_url:
         return f'ERROR: the environment variable {api_key_env} is empty (export it before starting the author)', {}
     payload = {'model': model, 'messages': [{'role': 'user', 'content': prompt}], 'max_tokens': 16000}
     req = urllib.request.Request(base_url.rstrip('/') + '/chat/completions', data=json.dumps(payload).encode(),
@@ -116,10 +119,19 @@ def by_openai(prompt, effort='medium', base_url='', api_key_env='', model='', ti
     usage['total'] = usage['input'] + usage['output']
     if u.get('cost') is not None:
         usage['cost_usd'] = u['cost']
+    sent = len(prompt) // 4
+    if usage['input'] and sent > 2000 and usage['input'] < sent // 2:   # a local server cut the prompt without saying so
+        return (f'ERROR: the model read only {usage["input"]:,} of about {sent:,} tokens: its context is too small. '
+                f'Give it at least {CONTEXT_NEEDED:,} (Ollama: OLLAMA_CONTEXT_LENGTH={CONTEXT_NEEDED} ollama serve; '
+                'LM Studio: Context Length when you load the model).'), usage
     try:
-        text = (data['choices'][0]['message']['content'] or '').strip()
+        choice = data['choices'][0]
+        text = (choice['message']['content'] or '').strip()
     except (KeyError, IndexError, TypeError):
         return f'ERROR: unexpected answer: {str(data)[:400]}', usage
+    if choice.get('finish_reason') == 'length':
+        return (f'ERROR: the answer was cut off before it finished: the model needs a context of at least '
+                f'{CONTEXT_NEEDED:,} tokens.'), usage
     text = re.sub(r'(?s)^\s*<think>.*?</think>\s*', '', text)     # a reasoning model's thinking, if it leaks
     return (text or 'ERROR: empty answer'), usage
 

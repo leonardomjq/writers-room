@@ -1,0 +1,72 @@
+/* writers-room: every rule is scoped to a story's card (body.wr-on, body.wr-style, html.wr-page). Other chats are left alone. */
+
+/* ---- the Play bar ---- */
+.wr-hidden { display: none !important; }
+#wr-bar { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; font-family: 'Iowan Old Style', 'Charter', 'Georgia', serif; background: rgb(23, 23, 23); border-radius: 10px 10px 0 0; }
+#wr-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.wr-btn.menu_button { margin: 0; padding: 6px 12px; width: auto; flex: 0 0 auto; font-size: 0.95em; opacity: 0.8; }
+.wr-btn.wr-main { flex: 1 1 auto; opacity: 1; font-weight: 600; text-align: center; }
+.wr-btn.wr-pick { flex: 1 1 0; min-width: 44px; }
+.wr-btn.wr-armed { opacity: 1; color: #d9bf94; }
+#wr-room { padding: 8px 4px; font-style: italic; color: #cfc8b6; text-align: center; }
+#wr-room .wr-now { color: #e9e6da; font-style: normal; font-weight: 600; }
+#wr-room .wr-done { opacity: 0.6; }
+#wr-room span { opacity: 0.45; }
+#wr-room span.wr-now, #wr-room span.wr-done { opacity: 1; }
+#wr-room .wr-sep { opacity: 0.35; }
+#wr-room code { font-style: normal; }
+#wr-note textarea { width: 100%; min-height: 3.2em; }
+.wr-note-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.wr-settings .menu_button { width: fit-content; margin-top: 8px; }
+.wr-private-label { display: block; margin-top: 8px; }
+
+/* ---- a chapter has one version: Write this chapter again replaces it ---- */
+body.wr-on #chat .mes :is(.swipe_right, .swipe_left, .swipes-counter) { display: none !important; }
+
+/* ---- the book ---- */
+body.wr-style #chat .mes_reasoning_details { display: none !important; }
+body.wr-style #chat .mes .mesAvatarWrapper,
+body.wr-style #chat .mes .ch_name .name_text,
+body.wr-style #chat .mes .timestamp,
+body.wr-style #chat .mes .timestamp-icon,
+body.wr-style #chat .mes .icon-svg,
+body.wr-style #chat .mes .tokenCounterDisplay { display: none !important; }
+body.wr-style #chat .mes { background: transparent; }
+body.wr-style #chat .mes_text { font-family: 'Iowan Old Style', 'Charter', 'Georgia', serif; font-size: 1.04em; line-height: 1.68; letter-spacing: .005em; text-rendering: optimizeLegibility; color: #e4e0d4; max-width: 36em; margin: 0 auto; }
+body.wr-style #chat .mes_text p { margin: 0 0 0.95em 0; }
+body.wr-style #chat .mes_text q { color: #d9bf94; }
+body.wr-style #chat .mes_text em { color: #cfc8b6; }
+body.wr-style #chat .mes_text h1 { font-size: 1.5em; font-weight: 600; margin: 0.2em 0 1em; text-align: center; color: #e9e6da; }
+body.wr-style #chat .mes_text ol { margin: 1.6em 0 0 0; padding: 1.1em 0 0 1.4em; border-top: 1px solid rgba(255, 255, 255, .14); }
+body.wr-style #chat .mes_text ol li { margin-bottom: .85em; padding-left: .2em; }
+body.wr-style #chat .mes_text ol li em { display: block; margin-top: .15em; }
+body.wr-style #chat .mes_text ol li strong { color: #e9e6da; font-weight: 600; }
+.wr-number { font-family: 'Iowan Old Style', 'Charter', 'Georgia', serif; text-align: center; font-size: 0.8em; letter-spacing: .12em; text-transform: uppercase; opacity: .55; margin-top: 1.4em; }
+.wr-recap { margin-top: 1.4em; padding-top: 0.9em; border-top: 1px solid rgba(255, 255, 255, .14); font-style: italic; color: #cfc8b6; }
+
+@media (max-width: 768px) {
+    body.wr-style #chat .mes { padding-left: 12px !important; padding-right: 12px !important; }
+    body.wr-style #chat .mes_text { font-size: 1.28em !important; padding-right: 0 !important; line-height: 1.55 !important; }
+    body.wr-style #chat .mes_text ol { font-size: 0.906em; }
+    body.wr-on #chat .mes.last_mes .mes_text { padding-bottom: 12px; }
+    #wr-bar { padding: 4px 6px; }
+}
+
+/* ---- phone reading mode (index.js, installPageMode): the page itself scrolls, so the browser shrinks its own bars,
+   and SillyTavern's two bars slide out going down and back going up ---- */
+html.wr-page { position: static !important; -webkit-transform: none !important; transform: none !important; -webkit-perspective: none !important; perspective: none !important; overflow-anchor: none; }
+html.wr-page body { position: static !important; overflow: visible !important; height: auto !important; min-height: 100vh; touch-action: manipulation !important; }
+html.wr-page #sheld { position: relative !important; top: 0 !important; height: auto !important; max-height: none !important; overflow: visible !important; overflow-x: clip !important; }
+html.wr-page #chat { flex: none !important; height: auto !important; max-height: none !important; overflow: visible !important; overflow-x: clip !important; padding-top: var(--topBarBlockSize) !important; padding-bottom: 0 !important; background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html.wr-page #chat::after { content: ''; flex: none; height: calc(var(--wr-form-h, 120px) + 34px); }
+html.wr-page #form_sheld { position: fixed !important; left: 0; right: 0; bottom: var(--wr-kb, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html.wr-page.wr-keyboard #form_sheld { padding-bottom: 0; }
+html.wr-page #expression-wrapper { display: none !important; }
+html.wr-page :is(.drawer-content, #left-nav-panel, #right-nav-panel) { overscroll-behavior: contain; }
+html.wr-page :is(#top-bar, #form_sheld) { will-change: transform; transition: transform 0.25s ease; }
+html.wr-page #top-settings-holder { transition: transform 0.25s ease; }
+html.wr-page.wr-bars-out :is(#top-bar, #top-settings-holder) { transform: translateY(calc(-1 * var(--wr-top-h, 0px) - 24px)); }
+html.wr-page.wr-bars-out #form_sheld { transform: translateY(calc(100% + 4px)); }
+.wr-marker { position: absolute; left: 0; width: 1px; pointer-events: none; visibility: hidden; }
+.wr-marker-top { top: 0; height: 1px; }
+.wr-marker-end { bottom: 0; height: 40px; }

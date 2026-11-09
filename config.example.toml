@@ -1,14 +1,15 @@
-# writers-room config. The author writes config.toml for you on the first run; this file shows every setting.
+# writers-room config. python3 engine/setup.py writes config.toml for you; this file shows every setting.
 
 # The story you are playing: a folder under stories/.
 story = "seventh-noon"
 
-# The agent that plays the author during play (engine/play.py starts one fresh run of it per move).
+# Who plays the author (engine/play.py starts one fresh run per move). "codex" or "claude": that agent, with tools.
+# "openai" (experimental): plain calls to the model under [openai], with no agent. Unproven; see the README.
 [author]
-agent = "codex"           # "codex" or "claude": the agent you have
+agent = "codex"
 
 # Who does each job. Each one is "codex" (the Codex CLI, on your ChatGPT plan), "claude" (the Claude Code CLI, on your
-# Claude plan) or "openai" (any OpenAI-compatible API: OpenRouter, a local model, ...).
+# Claude plan) or "openai" (experimental: the model under [openai]).
 [roles]
 writer = "codex"          # writes every chapter: one voice for the whole book
 reader = "codex"          # reads each chapter as the player; a different model family than the writer is best
@@ -21,10 +22,15 @@ model = ""                # empty: your Codex default
 [claude]
 model = "opus"
 
+# A local model needs a context of at least 40000 tokens: a smaller one cuts the prompt, and the engine stops and says so.
 [openai]
-base_url = "https://openrouter.ai/api/v1"   # or http://127.0.0.1:1234/v1 for LM Studio, http://127.0.0.1:11434/v1 for Ollama
-api_key_env = "OPENROUTER_API_KEY"          # the NAME of the environment variable that holds your key, not the key
-model = ""                                  # e.g. "deepseek/deepseek-chat"
+base_url = "http://127.0.0.1:11434/v1"      # Ollama; LM Studio is http://127.0.0.1:1234/v1; or an API like OpenRouter
+api_key_env = ""                            # the NAME of the environment variable that holds your key, not the key
+model = ""
 
 [serve]
 port = 5005               # SillyTavern connects to http://127.0.0.1:<port>/v1
+
+# SillyTavern's user folder (like .../SillyTavern/data/default-user): the room publishes its status there for the page.
+[sillytavern]
+user_dir = ""

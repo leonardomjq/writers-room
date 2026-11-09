@@ -18,6 +18,10 @@
   ],
   "creator": "writers-room",
   "character_version": "1",
-  "extensions": {}
+  "extensions": {
+   "writers_room": {
+    "v": 1
+   }
+  }
  }
 }

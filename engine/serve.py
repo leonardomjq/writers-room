@@ -29,6 +29,12 @@ HOLD_MINUTES = 40          # the longest a request waits for the author
 KEEPALIVE = 10             # seconds between keep-alive bytes
 STALE_MINUTES = 2          # no sign of play.py for this long (it beats every 30s): say so instead of waiting
 LOCAL_HOSTS = ('127.0.0.1', 'localhost', '::1')
+RESEND = '[[writers-room:resend]]'     # the extension's mark: "I lost the answer to this request, send it again"
+PLAY = '[[writers-room:play]]'         # the extension's mark on a move. Once it has been seen, unmarked requests are
+                                       # SillyTavern's background features (summaries, expressions), not the player
+FACTS = '[[writers-room:facts]]'       # marks what the player's own model said about a Private scene
+NO_FACTS = 'A Private scene happened. Its details stay private.'
+NOT_PLAY = "(writers-room only writes chapters. If you removed its extension, delete .run/extension-seen and send again.)"
 LOCK = threading.Lock()
 
 
@@ -108,7 +114,9 @@ def classify(msgs):
         private = []
     if last['role'] == 'assistant' and story.key(last['text']) in ooc_keys:
         move = ''
-    ev = {'private': [{'role': m['role'], 'text': m['text']} for m in private]}
+    # A Private scene itself never goes on: only the plain facts the player's own model gave, or that it happened.
+    facts = [m['text'][len(FACTS):].strip() for m in private if m['text'].startswith(FACTS)]
+    ev = {'private': [{'role': 'assistant', 'text': t} for t in (facts or [NO_FACTS])] if private else []}
     chapter = msgs[anchor_i]['text']
     if not chapter.lstrip().startswith('#'):
         chapter = '# (untitled)\n\n' + chapter          # options_of expects a chapter with its title line
@@ -139,11 +147,8 @@ def from_shelf(ev):
     """A Continue with a checked chapter waiting that follows the latest one: release it now."""
     if ev['kind'] != 'continue' or ev.get('private') or ev.get('note'):
         return None
-    sdir = story.story_dir()
-    s = story.stamp(sdir, ev['n'])
-    text = story.read(f'{sdir}/chapters/ch{story.nn(ev["n"])}.md')
-    if s.get('checked') and not s.get('released') and not s.get('move') and s.get('follows') == ev['n'] - 1 \
-            and s.get('checked_sha') == story.text_sha(text):
+    text = story.shelf_chapter(story.story_dir(), ev['n'])
+    if text:
         import run
         run.release(ev['n'], ev, quiet=True)
         story.update_event(ev['id'], by_shelf=True)
@@ -151,16 +156,18 @@ def from_shelf(ev):
     return None
 
 
-def handle(msgs):
-    """(an immediate reply, or None and the event to wait on)."""
+def handle(msgs, resend=False):
+    """(an immediate reply or None, the event it answers or to wait on). The same request again is the same event while
+    its chapter is being written, or when the answer never arrived. Once it arrived, a plain Regenerate sends the very
+    same request and means a Redo, so only the extension's resend mark gets the stored answer again."""
     with LOCK:
         sig = hashlib.sha1(json.dumps(msgs, sort_keys=True).encode()).hexdigest()[:16]
-        for e in reversed(story.events()):                       # the same request again: same event
+        for e in reversed(story.events()):
             if e.get('sig') == sig:
                 reply = story.read(story.reply_path(e['id']))
-                if reply:
-                    return reply, None
-                if not e.get('done'):
+                if reply and (resend or not e.get('delivered')):
+                    return reply, e
+                if not reply and not e.get('done'):
                     return None, e
                 break
         ev = classify(msgs)
@@ -175,9 +182,7 @@ def handle(msgs):
             story.write(story.reply_path(open_ev['id']), '*(Author: replaced by your newer message.)*')
         ev = story.add_event({**ev, 'sig': sig})
         shelf = from_shelf(ev)
-        if shelf:
-            return shelf, None
-        return None, ev
+        return (shelf, ev) if shelf else (None, ev)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -237,20 +242,33 @@ class Handler(BaseHTTPRequestHandler):
         msgs = [{'role': m['role'], 'text': strip_name(text_of(m), names)} for m in req.get('messages', [])
                 if m.get('role') in ('user', 'assistant')]
         msgs = [m for m in msgs if m['text'] or m['role'] == 'user']
+        at = next((i for i in range(len(msgs) - 1, -1, -1) if msgs[i]['text'].endswith((RESEND, PLAY))), None)
+        resend = False
+        if at is not None:
+            msgs = msgs[:at + 1]                                 # anything after the mark was injected (an Author's Note)
+            resend = msgs[-1]['text'].endswith(RESEND)
+            msgs[-1]['text'] = msgs[-1]['text'][:-len(RESEND if resend else PLAY)].rstrip()
+            story.write(story.run_path('extension-seen'), 'yes')
+        elif os.path.exists(story.run_path('extension-seen')):
+            stream = bool(req.get('stream'))
+            self.begin(stream)
+            self.finish_reply(NOT_PLAY, stream)
+            return
         if not msgs:
             self.send_json(400, {'error': {'message': 'no messages'}})
             return
         try:
-            reply, ev = handle(msgs)
+            reply, ev = handle(msgs, resend)
         except SystemExit as e:
             reply, ev = f'*(Author: {e})*', None
         stream = bool(req.get('stream'))
         self.begin(stream)
-        if ev is not None:
+        if reply is None:
             reply = self.hold(ev, stream)
             if reply is None:
                 return                                           # the client went away; the event stays open
-        self.finish_reply(reply, stream)
+        if self.finish_reply(reply, stream) and ev is not None:
+            story.update_event(ev['id'], delivered=True)
 
     # -- a held response: headers now, keep-alive bytes while the author works, the text at the end --
 
@@ -297,8 +315,9 @@ class Handler(BaseHTTPRequestHandler):
                     {'index': 0, 'message': {'role': 'assistant', 'content': text}, 'finish_reason': 'stop'}],
                     'usage': {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}}))
             self.chunk(b'')
+            return True
         except (BrokenPipeError, ConnectionResetError):
-            pass
+            return False
 
 
 def main():

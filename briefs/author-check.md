@@ -32,6 +32,8 @@ Then the bookkeeping, in one command (it also shelves the chapter and saves the 
     <one fact per line that became true: a kill, a wound, a deal, a name learned, who saw what, the player's call,
      a promise the story made>
     NOW: <where and when the story stands>
+    LAST TIME: <one or two plain sentences for someone coming back a day later: where they left off, only what this
+     chapter showed>
     SO FAR:
     <the whole story so far as the player has now seen it, under 400 words, older events compressed>
     END

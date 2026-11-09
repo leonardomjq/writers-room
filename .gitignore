@@ -1,4 +1,5 @@
 /config.toml
+/player.md
 # your own stories (and the demo copy you play) stay out of git; the demo and the template are tracked
 /stories/*
 !/stories/seventh-noon/

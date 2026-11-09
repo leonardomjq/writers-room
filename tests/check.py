@@ -5,7 +5,8 @@
 
 It copies the engine and the demo story into a temporary folder and checks how the endpoint reads each SillyTavern
 action (pick, Continue, typed move, note, Private, Redo, Back), that Back restores the story, the counter, the pack
-size, and that the author's write commands stay inside the story.
+size, a plain model's sections, taste, the card's mark, and that the author's write commands stay inside the story.
+tests/room.py runs the whole room against a scripted model.
 """
 import contextlib, io, os, shutil, sys, tempfile
 
@@ -16,7 +17,7 @@ for name in ('engine', 'briefs', 'stories'):
 shutil.copy(os.path.join(ROOT, 'config.example.toml'), os.path.join(tmp, 'config.toml'))
 sys.path.insert(0, os.path.join(tmp, 'engine'))
 sys.dont_write_bytecode = True
-import story, serve, run, tells
+import story, serve, run, tells, author, play
 
 results = []
 
@@ -41,8 +42,10 @@ check('a typed move with a note', serve.classify([A(ch1), U('I wave at her (note
 check('a message in parentheses is a note', serve.classify([A(ch1), U('(who is Ava?)')]),
       {'kind': 'note', 'note': 'who is Ava?'})
 p = serve.classify([A(ch1), U('I open the gate'), A('She smiles and steps in.'), U('c')])
-check('another model\'s messages are a Private stretch', {'kind': p['kind'], 'n': len(p['private'])},
-      {'kind': 'continue', 'n': 2})
+check('another model\'s scene never goes on as it is', {'kind': p['kind'], 'raw': 'smiles' in str(p['private']), 'n': len(p['private'])},
+      {'kind': 'continue', 'raw': False, 'n': 1})
+f = serve.classify([A(ch1), A(serve.FACTS + ' They made a deal at the gate.'), U('c')])
+check('only the marked facts reach the author', {'private': f['private'][0]['text']}, {'private': 'They made a deal at the gate.'})
 check('a chat from another story is refused', {'reply': 'reply' in serve.classify([A('# X\n\nother'), U('hi')])},
       {'reply': True})
 
@@ -72,6 +75,44 @@ buf = io.StringIO()
 with contextlib.redirect_stdout(buf):
     run.pack('plan')
 check('the plan pack fits in one prompt', {'small': len(buf.getvalue()) < 60000}, {'small': True})
+parts = author.sections('''Sure, here it is.
+```
+=== PLAN ===
+# Chapter 4: A title
+- a beat
+**=== NEW PEOPLE ===**
+## Mara
+=== private facts ===
+
+''')
+check('a plain model\'s answer becomes sections',
+      {'plan': parts.get('PLAN'), 'people': parts.get('NEW PEOPLE'), 'empty': parts.get('PRIVATE FACTS')},
+      {'plan': '# Chapter 4: A title\n- a beat', 'people': '## Mara', 'empty': ''})
+check('a plain model gets the world without an agent\'s commands', {'cmd': 'run.py' in author.the_world(),
+                                                                     'world': '## The world' in author.the_world()},
+      {'cmd': False, 'world': True})
+with contextlib.redirect_stdout(io.StringIO()):
+    run.taste('shorter chapters\n- more danger\n')
+    run.taste('only this one')
+mine = story.read(f'{story.ROOT}/player.md')
+check('taste asks replace each other, in your own player.md',
+      {'path': story.player_path().endswith('/player.md') and 'briefs' not in story.player_path(), 'one': mine.count(run.ASKED),
+       'old': 'more danger' in mine, 'new': '- only this one' in mine, 'keeps': 'What they read for' in mine},
+      {'path': True, 'one': 1, 'old': False, 'new': True, 'keeps': True})
+with contextlib.redirect_stdout(io.StringIO()):
+    run.card()
+card = story.read_json(f'{sdir}/card.json')
+check('the card is marked for the extension', {'mark': 'writers_room' in card['data']['extensions'],
+                                               'first': card['data']['first_mes'] == ch1}, {'mark': True, 'first': True})
+slow = [sys.executable, '-c', 'import sys, time; time.sleep(2.5); print(sys.stdin.read())']
+got = play.run_child(slow, 'hello', stdout=play.subprocess.PIPE)
+check('a child slower than the poll still gets its input once', {'got': got}, {'got': (0, 'hello\n')})
+try:
+    play.run_child([sys.executable, '-c', 'import time; time.sleep(60)'], stop=lambda: True)
+    results.append(False)
+except play.Interrupted:
+    results.append(True)
+    print('PASS  a move can stop a running child')
 try:
     run.append('../../outside', 'no')
     results.append(False)

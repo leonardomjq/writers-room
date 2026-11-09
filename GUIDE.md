@@ -27,6 +27,25 @@ single commands. Nobody waits on the four-minute pipeline. About 5.6 times fewer
 comparison on the same move found no clear quality difference. The story's state lives in files, so nothing is lost
 between runs.
 
+## Why local models play Private, not the author
+A cheap model wrote the Private scenes from the start, and a strong one did everything else. That split isn't about price:
+the author has to hold the whole bible and judge what a move changes, and a small model loses that in a long prompt. One
+ignored the player's move outright, and a room of five long calls in a row took over a 16 GB laptop. A short
+scene is a far simpler job, and it's the one the subscriptions won't do.
+
+`engine/author.py` runs the room on a plain model anyway, as an experiment for anyone with a strong one. A model there
+can't run anything: the engine does what it can alone (a Redo, a Back, a Continue with its plan ready) and asks the model
+only for the creative parts, in labeled sections.
+
+## The author never reads a Private scene
+Explicit text has no place on a subscription account. When the player steps back, their own model writes a few plain,
+non-graphic facts, and that's all the author gets. The extension swaps the scene for those facts inside the request itself,
+and the endpoint drops any Private text that isn't marked as those facts, so the scene can't slip through another way.
+
+## The files say only what the player has read
+A chapter written ahead has already done its bookkeeping. If the player types a move instead, or asks for a Redo, those
+facts never happened, and leaving them in is how a story contradicts itself. So the room restores the snapshot first.
+
 ## One writer's voice
 At one point four models touched every page: a narrator, a translator, an editor and a reader. Each pass sanded
 the voice flatter. A strong writer writing directly read far better than a weak draft rewritten by a stronger
@@ -93,4 +112,23 @@ on a screen. It is a story, not a game; the only game part is that the player ma
 
 ## Spoilers come from the author's mouth
 Status updates that named a coming beat spoiled the story several times. During play the author says nothing in
-the terminal; everything the player sees arrives in SillyTavern as a chapter or an out-of-character answer.
+the terminal; everything the player sees arrives in SillyTavern as a chapter or an out-of-character answer. The page's
+status holds only room steps and released chapters: a chapter written ahead doesn't exist for the page until it's yours.
+
+## Every screen is a page of the book
+Any panel or bar that looks like a game screen breaks the book. It's a story; the only game part is that the player
+decides. So the extension draws in the reading serif, shows steps as plain words, and adds nothing to the chat or to a
+prompt: headings and the recap live on the page only.
+
+## Show the room at work
+A chapter takes minutes. A spinner makes that a wait; the real steps (plan, write, read as you, mend, check) make it the
+reason the chapter is good. They cost nothing: the room publishes which step it's on.
+
+## Send and leave
+On a phone, people lock the screen after sending, and the browser may kill the request. So play must never need the page
+awake: the room keeps working, keeps its answer, and when the page wakes up it sends the same request again and gets the
+chapter as SillyTavern's own reply. The extension never writes a chapter into the chat, so it can't overwrite anything.
+
+## Change it by asking, within limits
+The player can ask from the page ("shorter chapters"). The author keeps those asks in five short lines at the end of the
+player's profile, replaced whole each time. One chapter's slip is never an ask: that would grow the rule pile back.

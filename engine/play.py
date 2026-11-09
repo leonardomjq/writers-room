@@ -11,13 +11,58 @@ SillyTavern it does, in order:
   4. it sends the chapter to SillyTavern, then writes the next one ahead when no crossroads is in front of you.
 Each author run starts fresh from the story's files with only what it needs, so it stays small.
 """
-import contextlib, io, json, os, signal, subprocess, sys, threading, time
+import contextlib, io, json, os, signal, subprocess, sys, threading, time, traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.dont_write_bytecode = True
 import providers, run, story
 
 AUTHOR_TIMEOUT = 25 * 60     # the longest one author run may take
+child = None                 # the process running now, so a stop can end it and everything it started
+
+
+class Interrupted(Exception):
+    """The player sent a move that voids the work being done."""
+
+
+def stop_child(p):
+    with contextlib.suppress(OSError):
+        os.killpg(p.pid, signal.SIGTERM)
+    try:
+        p.wait(3)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(OSError):
+            os.killpg(p.pid, signal.SIGKILL)
+        p.wait()
+
+
+def run_child(cmd, text_in=None, stop=None, timeout=None, **kw):
+    """Like subprocess.run, in its own process group, and `stop()` can end it early. Returns (exit code, its stdout)."""
+    global child
+    p = child = subprocess.Popen(cmd, start_new_session=True, text=True, cwd=story.ROOT,
+                                 stdin=subprocess.PIPE if text_in is not None else None, **kw)
+    end = time.time() + timeout if timeout else None
+    try:
+        while True:
+            try:
+                out = p.communicate(text_in, timeout=2)[0]
+                return p.returncode, out
+            except subprocess.TimeoutExpired:
+                text_in = None               # it has its input already; a second try must not send it again
+                if stop and stop():
+                    stop_child(p)
+                    raise Interrupted()
+                if end and time.time() > end:
+                    stop_child(p)
+                    raise
+    finally:
+        child = None
+
+
+def move_waiting():
+    """An unhandled move, Redo or Back (or a Private stretch) makes the chapter being written ahead useless."""
+    return any(not e.get('seen') and (e.get('kind') in ('move', 'redo', 'back') or e.get('private'))
+               for e in story.events())
 
 
 def ensure_server():
@@ -45,6 +90,7 @@ def beat():
     path = story.run_path('author-alive')
     with open(path, 'a'):
         os.utime(path, None)
+    story.publish()
 
 PLAN = """You are the author of this interactive web novel. Your brief and everything you need are below; do not
 run the pack command or read these files again. Handle what the player did, as the brief says, in as few commands as
@@ -87,16 +133,22 @@ def describe(e):
     return '\n'.join(lines)
 
 
-def agent_run(cfg, prompt, tag):
+def agent_run(cfg, prompt, tag, job, stop=None):
     """One short headless author run: a clean login (no personal instructions, skills or memories) and no project
-    manual loaded by default; the pack command gives it what it needs. Returns usage."""
+    manual loaded by default; the prompt holds what it needs. On a plain model (agent "openai") engine/author.py takes
+    the job instead of the prompt and asks the model only for what needs writing. Returns usage, with ok and, when not
+    ok, why."""
     agent = (cfg.get('author') or {}).get('agent', 'codex')
     log = story.run_path('logs', f'author-{tag}.log')
     if agent == 'claude':
         cmd = ['claude', '-p', '--setting-sources', '', '--strict-mcp-config', '--tools', 'Bash',
-               '--allowedTools', 'Bash(python3:*)', 'Bash(cat:*)', 'Bash(head:*)', 'Bash(tail:*)', 'Bash(grep:*)',
+               '--allowedTools', 'Bash(python3 engine/run.py:*)', 'Bash(cat:*)', 'Bash(head:*)', 'Bash(tail:*)', 'Bash(grep:*)',
                'Bash(ls:*)', '--output-format', 'stream-json', '--verbose',
                '--model', cfg['claude'].get('model') or 'opus']
+        env = os.environ
+    elif agent == 'openai':
+        cmd = [sys.executable, os.path.join(story.ROOT, 'engine', 'author.py')]
+        prompt = json.dumps(job)
         env = os.environ
     else:
         cmd = ['codex', 'exec', '-s', 'workspace-write', '-c', 'sandbox_workspace_write.network_access=true',
@@ -109,19 +161,27 @@ def agent_run(cfg, prompt, tag):
     t = time.time()
     with open(log, 'w') as f:
         try:
-            r = subprocess.run(cmd, input=prompt, cwd=story.ROOT, stdout=subprocess.PIPE, stderr=f, text=True,
-                               env=env, timeout=AUTHOR_TIMEOUT)
+            code, out = run_child(cmd, prompt, stop, AUTHOR_TIMEOUT, stdout=subprocess.PIPE, stderr=f, env=env)
         except FileNotFoundError:
             say(f'{tag}: the {agent} command was not found. Install it, or set [author] agent in config.toml.')
             return {'ok': False, 'why': f'the {agent} command is not installed on this computer'}
         except subprocess.TimeoutExpired:
             say(f'{tag}: the author run took over {AUTHOR_TIMEOUT // 60} minutes and was stopped. See {log}.')
             return {'ok': False, 'why': 'the author run took too long and was stopped'}
-        f.write(r.stdout)
+        f.write(out or '')
+    out = out or ''
     usage = {}
+    if agent == 'openai':                         # its calls log their own usage
+        try:
+            result = json.loads(out.strip().splitlines()[-1])
+        except (ValueError, IndexError):
+            result = {'ok': False, 'why': f'the author run failed (see .run/logs/author-{tag}.log)'}
+        if not result.get('ok'):
+            say(f'{tag}: {result.get("why")}')
+        return {'ok': bool(result.get('ok')), 'why': result.get('why', '')}
     if agent == 'claude':
         try:
-            last = [l for l in r.stdout.splitlines() if '"type":"result"' in l.replace(' ', '')][-1]
+            last = [l for l in out.splitlines() if '"type":"result"' in l.replace(' ', '')][-1]
             u = json.loads(last).get('usage') or {}
             usage = {'input': u.get('input_tokens', 0) + u.get('cache_read_input_tokens', 0)
                      + u.get('cache_creation_input_tokens', 0), 'cached': u.get('cache_read_input_tokens', 0),
@@ -129,7 +189,7 @@ def agent_run(cfg, prompt, tag):
         except (ValueError, IndexError):
             pass
     else:
-        for line in r.stdout.splitlines():
+        for line in out.splitlines():
             try:
                 d = json.loads(line)
             except ValueError:
@@ -140,10 +200,10 @@ def agent_run(cfg, prompt, tag):
                          'output': u.get('output_tokens', 0)}
     usage['total'] = usage.get('input', 0) + usage.get('output', 0)
     story.usage_log({'role': 'author', 'provider': agent, 'what': tag, 'seconds': int(time.time() - t),
-                     'ok': r.returncode == 0, **usage})
+                     'ok': code == 0, **usage})
     say(f'{tag}: {usage["total"]:,} tokens ({usage.get("cached", 0):,} cached), {int(time.time() - t)}s')
-    if r.returncode:
-        limit = 'usage limit' in story.read(log).lower()
+    if code:
+        limit = bool(providers.LIMIT.search(story.read(log)[-1500:]))
         say(f'{tag}: the author run failed' + (' (usage limit reached)' if limit else '') + f'. See {log}.')
         return {**usage, 'ok': False, 'why': "your plan's usage limit was reached; send again once it resets" if limit
                 else f'the author run failed (see .run/logs/author-{tag}.log)'}
@@ -169,7 +229,7 @@ def take(name):
     return data
 
 
-def pipeline(job):
+def pipeline(job, stop=None):
     args = [sys.executable, os.path.join(story.ROOT, 'engine', 'run.py'), 'chapter', str(job['n'])]
     if job.get('move'):
         args += ['--move', job['move']]
@@ -178,11 +238,11 @@ def pipeline(job):
     say(f'writing chapter {job["n"]} (writer, reader, mender)...')
     log = story.run_path('logs', f'ch{story.nn(job["n"])}.log')
     with open(log, 'w') as f:
-        ok = subprocess.run(args, cwd=story.ROOT, stdout=f, stderr=subprocess.STDOUT).returncode == 0
-    return ok, 'usage limit' in story.read(log).lower()
+        code, _ = run_child(args, stop=stop, stdout=f, stderr=subprocess.STDOUT)
+    return code == 0, bool(providers.LIMIT.search(story.read(log)[-1500:]))
 
 
-def write_chapter(cfg, deliver):
+def write_chapter(cfg, deliver, stop=None):
     """Run what the planning run queued: pipeline, check, and (when deliver) release to the waiting request.
     Returns the chapter number shelved, or None (and, when deliver, tells the player why)."""
     why = 'the author planned nothing for it'
@@ -190,15 +250,25 @@ def write_chapter(cfg, deliver):
         job = take('queue.json')
         if not job:
             break
-        ok, limit = pipeline(job)
+        ok, limit = pipeline(job, stop)
         if not ok:
             say(f'chapter {job["n"]} failed: see .run/logs/ch{story.nn(job["n"])}.log')
             why = ("your plan's usage limit was reached; send again once it resets" if limit else
                    f'writing it failed (see .run/logs/ch{story.nn(job["n"])}.log)')
             break
+        if stop and stop():
+            raise Interrupted()
+        story.room('checking')
         checked = agent_run(cfg, CHECK.format(n=job['n'], pack=pack('check', job['n'])),
-                            f'check-ch{story.nn(job["n"])}')
+                            f'check-ch{story.nn(job["n"])}', {'kind': 'check', 'n': job['n']}, stop)
+        if checked['ok'] and not story.stamp(story.story_dir(cfg), job['n']).get('checked') \
+                and not os.path.exists(story.run_path('queue.json')):
+            say(f'chapter {job["n"]}: the check left no bookkeeping; shelving the chapter as it is')   # never block reading
+            with contextlib.suppress(SystemExit), contextlib.redirect_stdout(io.StringIO()):
+                run.shelve(job['n'])
         if story.stamp(story.story_dir(cfg), job['n']).get('checked'):
+            if stop and stop():                  # never hand this chapter to a message it wasn't written for
+                raise Interrupted()
             if deliver and story.open_event():
                 run.release(job['n'], quiet=True)
                 say(f'chapter {job["n"]} sent to SillyTavern')
@@ -215,27 +285,69 @@ def ends_at_crossroads(cfg, n):
 
 def write_ahead(cfg, n):
     """After chapter n reached the player with no crossroads at its end: plan, write and shelve chapter n+1."""
-    if ends_at_crossroads(cfg, n) or story.stamp(story.story_dir(cfg), n + 1).get('checked'):
+    if ends_at_crossroads(cfg, n) or story.stamp(story.story_dir(cfg), n + 1).get('checked') or move_waiting():
         return
-    if not agent_run(cfg, PLAN.format(events=f'WRITE AHEAD (chapter {n + 1}): the player is reading chapter {n}; it ends '
-                                      f'with no crossroads.', pack=pack('plan')), f'plan-ch{story.nn(n + 1)}-ahead')['ok']:
-        return
-    if write_chapter(cfg, deliver=False):
-        say(f'chapter {n + 1} is on the shelf')
+    story.room('planning')
+    try:
+        if not agent_run(cfg, PLAN.format(events=f'WRITE AHEAD (chapter {n + 1}): the player is reading chapter {n}; it '
+                                          f'ends with no crossroads.', pack=pack('plan')),
+                         f'plan-ch{story.nn(n + 1)}-ahead', {'kind': 'ahead', 'n': n + 1}, move_waiting)['ok']:
+            return
+        if write_chapter(cfg, deliver=False, stop=move_waiting):
+            say(f'chapter {n + 1} is on the shelf')
+    except Interrupted:
+        take('queue.json')
+        say(f'chapter {n + 1} stopped: the player sent something that changes it')
+
+
+def newer_waiting():
+    """The player sent something else while this was being written: what it was for is void."""
+    return any(not e.get('seen') for e in story.events())
+
+
+def settle(cfg, e):
+    """The story's files must say only what the player has read. A Redo takes back the bookkeeping of the chapter it
+    replaces; anything else that doesn't take the chapter written ahead takes back that chapter's bookkeeping."""
+    sdir = story.story_dir(cfg)
+    kind, n = e.get('kind'), e.get('n')
+    if kind == 'redo':
+        with contextlib.suppress(SystemExit), contextlib.redirect_stdout(io.StringIO()):
+            run.back(n - 1)
+    elif kind not in ('back', 'note'):
+        s = story.stamp(sdir, n)
+        if s.get('checked') and not s.get('released') and s.get('before'):
+            story.restore(sdir, s['before'])
+            story.publish(cfg)
 
 
 def handle(cfg, todo):
     shelf = [e for e in todo if e.get('by_shelf')]
-    rest = [e for e in todo if not e.get('by_shelf')]
+    rest = [e for e in todo if not e.get('by_shelf') and not e.get('done')]
     last_sent = None
+    if rest and all(e.get('kind') == 'continue' and not e.get('private') and not e.get('note') for e in rest):
+        latest = rest[-1]                     # a Continue that came while this chapter was being written ahead
+        if story.shelf_chapter(story.story_dir(cfg), latest['n']):
+            run.release(latest['n'], latest, quiet=True)
+            story.update_event(latest['id'], by_shelf=True)
+            say(f'chapter {latest["n"]} sent to SillyTavern from the shelf')
+            last_sent, rest = latest['n'], []
     if rest:
-        planned = agent_run(cfg, PLAN.format(events='\n\n'.join(describe(e) for e in rest), pack=pack('plan')),
-                            f'plan-{rest[-1]["id"]}')
-        if planned['ok']:
-            last_sent = write_chapter(cfg, deliver=True)
-        else:
+        settle(cfg, rest[-1])
+        story.room('planning')
+        what = '\n\n'.join(describe(e) for e in rest)
+        try:
+            planned = agent_run(cfg, PLAN.format(events=what, pack=pack('plan')), f'plan-{rest[-1]["id"]}',
+                                {'kind': 'plan', 'events': rest, 'what': what}, newer_waiting)
+            if planned['ok']:
+                last_sent = write_chapter(cfg, deliver=True, stop=newer_waiting)
+            else:
+                take('queue.json')
+                tell_player(planned['why'])
+        except Interrupted:
             take('queue.json')
-            tell_player(planned['why'])
+            story.room(None)
+            say('stopped: the player sent something newer')
+            return
     elif shelf:
         last_sent = shelf[-1].get('n')
     review = take('review-queue.json')
@@ -243,15 +355,28 @@ def handle(cfg, todo):
         say(f'second author on stretch {review["stretch"]}...')
         subprocess.run([sys.executable, os.path.join(story.ROOT, 'engine', 'run.py'), 'review',
                         str(review['stretch'])], cwd=story.ROOT, stdout=subprocess.DEVNULL)
+    story.room(None)
     if last_sent:
         write_ahead(cfg, last_sent)
+        story.room(None)
+
+
+def create_story(cfg, premise):
+    """Experimental: build the live (empty) story from a premise on a plain model. With an agent, the manual's "A new
+    story" does this instead."""
+    say('the author is building the story...')
+    built = agent_run(cfg, '', 'new-story', {'kind': 'new', 'premise': premise})
+    if not built['ok'] or not write_chapter(cfg, deliver=False):
+        raise SystemExit(f'the story was not built: {built.get("why") or "see .run/logs/"}')
+    run.card()
 
 
 def main():
     cfg = story.config()
     if cfg.get('missing'):
-        raise SystemExit('No config.toml yet: open your agent in this folder and say "start" first.')
+        raise SystemExit('No config.toml yet: run python3 engine/setup.py first.')
     signal.signal(signal.SIGTERM, signal.default_int_handler)   # `pkill -f engine/play.py` stops it like Ctrl+C
+    story.retry_open_events()
     port, server = ensure_server()
     agent = (cfg.get('author') or {}).get('agent', 'codex')
     say(f'Playing "{cfg["story"]}". SillyTavern: http://127.0.0.1:{port}/v1, model "author". Author: {agent}. '
@@ -271,11 +396,20 @@ def main():
                 time.sleep(2)
                 continue
             say(', '.join(e.get('kind', '?') + (' (from the shelf)' if e.get('by_shelf') else '') for e in new))
-            handle(cfg, new)
+            try:
+                handle(cfg, new)
+            except (Exception, SystemExit) as e:     # one bad move must never take the room down
+                traceback.print_exc()
+                story.room(None)
+                take('queue.json')
+                tell_player(f'the room hit an error ({str(e)[:120]}; see the terminal)')
     except KeyboardInterrupt:
         print('\nStopped. Run it again to keep playing.')
     finally:
         stop.set()
+        story.room(None)
+        if child:
+            stop_child(child)
         if server:
             server.terminate()
 

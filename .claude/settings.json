@@ -4,7 +4,6 @@
       "Bash(python3 engine/run.py:*)",
       "Bash(python3 engine/play.py:*)",
       "Bash(python3 engine/tells.py:*)",
-      "Bash(python3 -c \"import secrets; print(secrets.randbelow(100) + 1)\")",
       "Bash(pkill -f engine/play.py)",
       "Bash(pkill -f engine/serve.py)"
     ]

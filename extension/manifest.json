@@ -1,0 +1,11 @@
+{
+    "display_name": "writers-room",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "generate_interceptor": "writersRoomInterceptor",
+    "author": "writers-room",
+    "version": "2.0.0"
+}

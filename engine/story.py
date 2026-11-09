@@ -57,11 +57,13 @@ def body(text):
 
 DEFAULTS = {
     'story': 'seventh-noon',
+    'author': {'agent': 'codex'},
     'roles': {'writer': 'codex', 'reader': 'codex', 'mender': 'writer', 'second_author': 'codex'},
     'codex': {'model': ''},
     'claude': {'model': 'opus'},
     'openai': {'base_url': 'https://openrouter.ai/api/v1', 'api_key_env': 'OPENROUTER_API_KEY', 'model': ''},
     'serve': {'port': 5005},
+    'sillytavern': {'user_dir': ''},
 }
 
 
@@ -122,6 +124,21 @@ def key(text):
     t = prose_of(text) if text.lstrip().startswith('#') else re.split(OPTION_SPLIT, '\n' + text.strip())[0]
     t = re.sub(r'[^a-z0-9]+', '', t.lower())
     return hashlib.sha1(t[:400].encode()).hexdigest()[:16] if t else ''
+
+
+def head(text):
+    """The start of a chapter's prose, letters and digits only: how the SillyTavern extension recognizes a chapter."""
+    return re.sub(r'[^a-z0-9]+', '', prose_of(text).lower())[:60]
+
+
+def shelf_chapter(sdir, n, cfg=None):
+    """Chapter n's text if it is checked, written ahead for a Continue and still follows what the player has."""
+    s = stamp(sdir, n)
+    text = read(f'{sdir}/chapters/ch{nn(n)}.md')
+    if s.get('checked') and not s.get('released') and not s.get('move') and s.get('follows') == n - 1 \
+            and s.get('checked_sha') == text_sha(text):
+        return text
+    return None
 
 
 def number(name):
@@ -233,6 +250,16 @@ def take_new_events():
     return new
 
 
+def retry_open_events():
+    """At start: a move the last run took but never answered (it crashed, or was stopped) is handled again."""
+    with events_lock():
+        items = events()
+        for e in items:
+            if not e.get('done'):
+                e['seen'] = False
+        save_events(items)
+
+
 def endpoint_state(port):
     """'ours' (the writers-room endpoint answers on the port), 'other' (something else does) or 'free'."""
     try:
@@ -254,6 +281,59 @@ def open_event():
 
 def reply_path(eid):
     return run_path('replies', f'{eid}.md')
+
+
+# ---- the public status: what the page may know (room steps and released chapters, never anything unreleased) ----
+
+def room(step):
+    """The step the writers' room is on: planning, writing, reading, mending, checking, or None."""
+    write_json(run_path('room.json'), {'step': step, 'since': int(time.time())} if step else {})
+    publish()
+
+
+def st_files(cfg=None):
+    """SillyTavern's user/files folder (the page reads our status from it), or None when it is not set up."""
+    user_dir = (cfg or config()).get('sillytavern', {}).get('user_dir', '')
+    path = os.path.join(os.path.expanduser(user_dir), 'user', 'files') if user_dir else ''
+    return path if path and os.path.isdir(os.path.dirname(path)) else None
+
+
+def publish(cfg=None):
+    """Write the public status where the page can read it. Never raises: the game runs without the extension."""
+    try:
+        cfg = cfg or config()
+        sdir = story_dir(cfg)
+        chs = [r for r in released(sdir) if r.get('nn') and not r.get('kind')]
+        last = chs[-1] if chs else None
+        items = []
+        for r in chs:
+            items.append({'n': r['nn'], 'title': r.get('title', ''),
+                          'head': head(read(f'{sdir}/chapters/ch{nn(r["nn"])}.md'))})
+        try:
+            last_at = int(time.mktime(time.strptime(last['at'], '%Y-%m-%d %H:%M:%S'))) if last else 0
+        except (ValueError, KeyError):
+            last_at = 0
+        beat = os.path.getmtime(run_path('author-alive')) if os.path.exists(run_path('author-alive')) else 0
+        meta = read_json(f'{sdir}/story.json', {}) or {}
+        data = {'v': 1, 'story': cfg['story'], 'title': meta.get('title', ''), 'port': cfg['serve'].get('port', 5005),
+                'beat': int(beat), 'room': read_json(run_path('room.json'), {}) or {}, 'chapters': items,
+                'recap': stamp(sdir, last['nn']).get('recap', '') if last else '', 'last_at': last_at}
+        write_json(run_path('status.json'), data)
+        files = st_files(cfg)
+        if files:
+            write_json(os.path.join(files, 'writers-room.json'), data)
+            card = read(f'{sdir}/card.json')
+            if card:
+                write(os.path.join(files, 'writers-room-card.json'), card)
+    except (OSError, SystemExit, ValueError) as e:
+        print(f'status not published: {e}', file=sys.stderr)
+
+
+# ---- the reader's profile: your copy (made at setup, never in git) over the default ----
+
+def player_path():
+    mine = f'{ROOT}/player.md'
+    return mine if os.path.exists(mine) else f'{BRIEFS}/player.md'
 
 
 def usage_log(entry):
