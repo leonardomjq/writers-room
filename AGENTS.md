@@ -33,29 +33,32 @@ and go on from here.
 1. **Your own sandbox.** The engine calls models over the network and opens a local port for SillyTavern. In Codex, the
    project's `.codex/config.toml` allows that (workspace-write with network); if a command fails with a network or
    "Operation not permitted" error, ask the player to restart Codex in this folder and trust it, or to approve the
-   command. In Claude Code, `.claude/settings.json` allows the engine's commands; approve them if asked.
+   command. Installing the extension writes into SillyTavern's folder, outside this one: approve that too. In Claude Code, `.claude/settings.json` allows the engine's commands; approve them if asked.
 2. **Ask once, together:** which novels or kinds of stories they love; whether English is their first language; the demo or
    their own story (one line on the demo: *The Seventh Noon: a week into the end of the world, a voice in every head
    names the ten strongest people in the city. You are number seven. Whoever kills one of the ten takes everything they
    carry.*). Their own: a premise in a line or two. Never ask them to paste a key into this chat; a key lives in an
    environment variable, exported in the shell they play from.
-3. **Run it**, with what you learned (`--help` lists everything; it finds Claude, Codex and SillyTavern by itself, and
+3. **Use only what they have.** Setup assigns every tool it finds on this computer, but a tool can be installed and
+   signed in without a plan behind it. If they named one plan, pass that one for every job: `--author claude --writer
+   claude --reader claude` (or `codex`). Only with both plans let setup spread the jobs.
+4. **Run it**, with what you learned (`--help` lists everything; it finds Claude, Codex and SillyTavern by itself, and
    tests each model):
    `python3 engine/setup.py --yes --novels "..." --english first|second --story demo`
    Add `--author`, `--writer`, `--reader` to override a choice, and `--sillytavern <folder>` if it is not found. Their own story: run it with the demo, then A new story.
-4. Then Play. Tell them to refresh SillyTavern: it offers to connect and open the story in one tap. If setup could not
+5. Then Play. Tell them to refresh SillyTavern: it offers to connect and open the story in one tap. If setup could not
    find SillyTavern, do Setup by hand with them.
 
 ## Play
-Start the room in the background, unless it is already running (`pgrep -f engine/play.py`):
-`mkdir -p .run/logs && nohup python3 engine/play.py > .run/logs/play.log 2>&1 &`
-It keeps the SillyTavern endpoint up, costs nothing while they read, and runs the writers' room for each move. Say they
+`python3 engine/play.py --background` (it says so if the room is already running). In Codex, run it outside your
+sandbox, with the player's approval: the room runs Codex itself for every chapter, and a sandbox cannot open another
+one, so a room started inside it fails on the first move (play.py refuses to start there and says so). It keeps the SillyTavern endpoint up, costs nothing while they read, and runs the writers' room for each move. Say they
 can play in SillyTavern now, and that the room keeps running until they say "stop" or restart the computer. If they
 would rather watch it work, they can run `python3 engine/play.py` in a terminal themselves (Ctrl+C stops it). Your part
 is done until they come back.
 
 ## Stop
-`pkill -f engine/play.py`. It stops the room and the endpoint with it.
+`python3 engine/play.py --stop`. It stops the room and the endpoint with it.
 
 ## Setup by hand (setup could not find SillyTavern)
 Ask where SillyTavern is, then run setup again with `--sillytavern <folder>`. If that still fails:

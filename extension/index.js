@@ -435,9 +435,11 @@ async function openStory() {
 async function offerSetup() {
     if (settings().offered || !status?.story) return;
     if (hasAuthor() && ctx().characters.some(ch => ch?.data?.extensions?.writers_room)) return;
-    settings().offered = true;
-    ctx().saveSettingsDebounced();
+    // after SillyTavern's own first-run screens, never under them
+    for (let i = 0; i < 600 && document.querySelector('dialog[open]'); i++) await new Promise(r => setTimeout(r, 1000));
     const yes = await ctx().Popup.show.confirm('writers-room', `<p>${$('<i>').text(status.title || 'Your story').html()} is ready. Connect SillyTavern to the room and open it?</p>`);
+    settings().offered = true;                    // asked and answered: a closed tab asks again next time
+    ctx().saveSettingsDebounced();
     if (yes) await connect();
 }
 

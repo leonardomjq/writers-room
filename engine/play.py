@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Play: keeps the SillyTavern endpoint up and runs the writers' room for each thing the player does.
 
-  python3 engine/play.py
+  python3 engine/play.py                 (in a terminal; Ctrl+C stops it)
+  python3 engine/play.py --background    (keeps running on its own; for an agent to start it)
+  python3 engine/play.py --stop
 
-Leave it running while you play (Ctrl+C to stop). Nothing runs while you read. When you send something in
+Leave it running while you play. Nothing runs while you read. When you send something in
 SillyTavern it does, in order:
   1. a short author run (your agent, headless) that decides what your move changes and writes the chapter's plan;
   2. the writer, the reader and the mender (sealed calls, no agent waiting on them);
@@ -371,11 +373,66 @@ def create_story(cfg, premise):
     run.card()
 
 
+PID = 'play.pid'
+
+
+def running_pid():
+    """The pid of a room already running in this folder, or None."""
+    pid = story.read_json(story.run_path(PID))
+    try:
+        os.kill(int(pid), 0)
+        return int(pid)
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def background():
+    """Start the room on its own, with its log in .run/logs/play.log, and return."""
+    if running_pid():
+        raise SystemExit(f'The room is already running (pid {running_pid()}).')
+    log = open(story.run_path('logs', 'play.log'), 'a')
+    p = subprocess.Popen([sys.executable, os.path.abspath(__file__)], cwd=story.ROOT, stdin=subprocess.DEVNULL,
+                         stdout=log, stderr=log, start_new_session=True)
+    for _ in range(30):
+        time.sleep(0.3)
+        if p.poll() is not None:
+            raise SystemExit('The room stopped right away: see .run/logs/play.log')
+        if running_pid():
+            break
+    print(f'The room is running (pid {p.pid}). It keeps going until python3 engine/play.py --stop. '
+          'Log: .run/logs/play.log')
+
+
+def stop_room():
+    pid = running_pid()
+    if not pid:
+        print('The room is not running.')
+        return
+    os.kill(pid, signal.SIGTERM)
+    for _ in range(30):
+        time.sleep(0.3)
+        if not running_pid():
+            break
+    print('The room is stopped.')
+
+
+IN_SANDBOX = ('The room cannot run inside Codex\'s sandbox: it runs Codex itself for every chapter, and a sandbox '
+              'cannot open another one. Start it outside the sandbox: approve running `python3 engine/play.py '
+              '--background` outside it when Codex asks, or run `python3 engine/play.py` in a terminal.')
+
+
 def main():
+    if os.environ.get('CODEX_SANDBOX') and '--stop' not in sys.argv:
+        raise SystemExit(IN_SANDBOX)
+    if '--background' in sys.argv:
+        return background()
+    if '--stop' in sys.argv:
+        return stop_room()
     cfg = story.config()
     if cfg.get('missing'):
         raise SystemExit('No config.toml yet: run python3 engine/setup.py first.')
-    signal.signal(signal.SIGTERM, signal.default_int_handler)   # `pkill -f engine/play.py` stops it like Ctrl+C
+    signal.signal(signal.SIGTERM, signal.default_int_handler)   # --stop (or pkill) stops it like Ctrl+C
+    story.write_json(story.run_path(PID), os.getpid())
     story.retry_open_events()
     port, server = ensure_server()
     agent = (cfg.get('author') or {}).get('agent', 'codex')
@@ -410,6 +467,9 @@ def main():
         story.room(None)
         if child:
             stop_child(child)
+        with contextlib.suppress(OSError):
+            if story.read_json(story.run_path(PID)) == os.getpid():
+                os.unlink(story.run_path(PID))
         if server:
             server.terminate()
 

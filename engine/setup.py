@@ -91,13 +91,19 @@ def make_player(novels, english):
     story.write(f'{ROOT}/player.md', text)
 
 
+def is_user_dir(path):
+    """A SillyTavern user folder, even a brand-new one that hasn't made all its folders yet."""
+    return os.path.isdir(path) and any(os.path.exists(os.path.join(path, f)) for f in ('settings.json', 'characters'))
+
+
 def user_dirs(path):
     """The SillyTavern user folders under a path: the install, its data folder, or a user folder itself."""
     path = os.path.abspath(os.path.expanduser(path))
-    if os.path.isdir(os.path.join(path, 'extensions')) and os.path.isdir(os.path.join(path, 'characters')):
+    if is_user_dir(path) and os.path.basename(os.path.dirname(path)) == 'data':
         return [path]
-    return sorted(p for p in glob.glob(os.path.join(path, 'data', '*')) + glob.glob(os.path.join(path, '*'))
-                  if os.path.isdir(os.path.join(p, 'characters')) and os.path.isdir(os.path.join(p, 'chats')))
+    found = sorted(p for p in glob.glob(os.path.join(path, 'data', '*')) if is_user_dir(p))
+    preferred = [p for p in found if os.path.basename(p) == 'default-user']
+    return preferred + [p for p in found if p not in preferred] or ([path] if is_user_dir(path) else [])
 
 
 def find_sillytavern(args):
