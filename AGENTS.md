@@ -15,11 +15,17 @@ There are two ways an agent works here:
   asks the model only for what needs writing, and no agent is involved. It is unproven; don't offer it unless they ask,
   and if they do, say so plainly and point them to the README. Their own model's real job is Private scenes.
 
+The player rarely reads anything but the README; they ask you. Do the work yourself, explain in plain words, and never
+hand them a command when you can run it. If you were asked to clone this repository, clone it, work inside the clone,
+and go on from here.
+
 ## What the player says to you
-- **"start"** (or "play", "set this up for me"): no config.toml yet → First run. Otherwise → Play.
-- **"new story"**: A new story.
+- **"start"**, "set this up for me", or the README's setup prompt: no config.toml yet → First run. Otherwise → Play.
+- **"play"**: Play. **"stop"**: Stop.
+- **"new story"**: A new story. "Switch to <story>": Changing stories.
 - Anything about how the story reads ("more danger", "the talk feels robotic", "shorter chapters"): Changing how it
   plays.
+- "Update", "start over", "my phone", "remove it", "something's wrong": the sections of those names below.
 - Moves are made in SillyTavern, on the Play bar. If the player has no SillyTavern and types a move here: Terminal play.
 
 ## First run (`python3 engine/run.py status` says NO CONFIG)
@@ -37,21 +43,66 @@ There are two ways an agent works here:
    tests each model):
    `python3 engine/setup.py --yes --novels "..." --english first|second --story demo`
    Add `--author`, `--writer`, `--reader` to override a choice, and `--sillytavern <folder>` if it is not found. Their own story: run it with the demo, then A new story.
-4. Then Play. Tell them to refresh SillyTavern: it offers to connect and open the story in one tap. If it cannot, or
-   SillyTavern is elsewhere, give them Setup by hand from the README.
+4. Then Play. Tell them to refresh SillyTavern: it offers to connect and open the story in one tap. If setup could not
+   find SillyTavern, do Setup by hand with them.
 
 ## Play
-Tell them to run this in a terminal in this folder and leave it open while they play (Ctrl+C stops it):
-```
-python3 engine/play.py
-```
-It keeps the SillyTavern endpoint up, costs nothing while they read, and runs the writers' room for each move. If they
-cannot open a terminal, start it for them in the background:
-`mkdir -p .run/logs && nohup python3 engine/play.py > .run/logs/play.log 2>&1 &` (and `pkill -f engine/play.py` stops
-it). Then say that they can play in SillyTavern now. Your part is done until they come back with a change or a new story.
+Start the room in the background, unless it is already running (`pgrep -f engine/play.py`):
+`mkdir -p .run/logs && nohup python3 engine/play.py > .run/logs/play.log 2>&1 &`
+It keeps the SillyTavern endpoint up, costs nothing while they read, and runs the writers' room for each move. Say they
+can play in SillyTavern now, and that the room keeps running until they say "stop" or restart the computer. If they
+would rather watch it work, they can run `python3 engine/play.py` in a terminal themselves (Ctrl+C stops it). Your part
+is done until they come back.
 
-If something goes wrong in play, `.run/logs/` has a log for every author run and every chapter, and
-`python3 engine/run.py status` shows what the player has and what is waiting.
+## Stop
+`pkill -f engine/play.py`. It stops the room and the endpoint with it.
+
+## Setup by hand (setup could not find SillyTavern)
+Ask where SillyTavern is, then run setup again with `--sillytavern <folder>`. If that still fails:
+1. Link `extension/` into SillyTavern as `data/default-user/extensions/writers-room`, and set `user_dir` under
+   `[sillytavern]` in config.toml to that user folder.
+2. Have them open API Connections → Chat Completion → Custom (OpenAI-compatible), URL `http://127.0.0.1:5005/v1` (the
+   port in config.toml), model `author`, no key, and save it as a connection profile named "Author".
+3. Have them import `stories/<story>/card.json` and open its chat.
+Without the extension the game still plays (an empty message continues, a number picks, deleting chapters goes back),
+but without the Play bar, the book style, the room's steps or the facts from Private scenes.
+
+## Changing stories
+Set `story` in config.toml, Stop, Play. In SillyTavern: Extensions → writers-room → "Connect and open the story" imports
+and opens that story's card.
+
+## Update
+Stop, `git pull`, Play, and tell them to refresh SillyTavern. Their config.toml, player.md and stories are not in git,
+so an update never touches them.
+
+## Start over
+For the demo: Stop, `rm -rf stories/play-seventh-noon .run`, `python3 engine/setup.py --yes` with their earlier
+`--novels` and `--english` answers (player.md has them), Play, and have them open a new chat with the card. Say first
+that this throws away the story they played.
+
+## My phone
+The extension already reads well on a phone; the only question is whether the phone can open their SillyTavern. That
+is SillyTavern's own setup, in its `config.yaml`: on the home network, `listen: true` plus their phone's address in the
+whitelist; from anywhere, something like Tailscale. Explain the choice and ask before you change their SillyTavern
+config. Never turn the whitelist off without a password (basicAuth), and never forward a port to the internet. The
+computer running the room has to stay on and awake while chapters are written.
+
+## Remove it
+Stop. Then delete `<SillyTavern user folder>/extensions/writers-room` and this folder (confirm first: it holds their
+stories). In SillyTavern they can delete the "Author" connection profile and the story's character themselves.
+
+## Something's wrong
+`python3 engine/run.py status` says what the player has and what is waiting; `.run/logs/` has a log for every author
+run (`author-*.log`), every chapter (`chNN.log`), the room (`play.log`) and the endpoint (`serve.log`). The usual
+causes: the room is not running (Play), a usage limit (wait for the reset; the player got a note), the chat is from
+another story (a new chat with the right card), or SillyTavern was not refreshed after an update. Fix what you can and
+tell them plainly what happened.
+
+## The plain-model experiment
+If they ask to run the room on OpenRouter or a local model: it is experimental and unproven. Say so, and that it needs
+a strong model with a context of at least 40,000 tokens; a small one loses track of their move and writes too little.
+Then: `python3 engine/setup.py --author openai --writer openai --reader openai --openai-url <url> --openai-model <model>
+--openai-key-env <NAME>` (the NAME of an environment variable holding the key; never ask them to paste a key here).
 
 ## A new story
 Read briefs/author-plan.md first: it holds how a story is planned and how the world behaves.

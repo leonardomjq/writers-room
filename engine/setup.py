@@ -197,7 +197,11 @@ def main():
 
     print()
     if user_dir:
-        print(f'SillyTavern: extension installed in {link_extension(user_dir)}')
+        try:
+            print(f'SillyTavern: extension installed in {link_extension(user_dir)}')
+        except OSError as e:                     # an agent's sandbox may not write outside this folder
+            print(f'Could not install the extension into SillyTavern ({e.strerror}). Run setup again where it may '
+                  f'write to {user_dir}, or link extension/ there by hand.')
     story.publish()
     print('Done. For Private scenes, keep your own model as a connection profile in SillyTavern. '
           'For a story of your own, open your agent here and say "new story". Two things left:')

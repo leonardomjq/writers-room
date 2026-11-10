@@ -8,6 +8,20 @@ You read a chapter. You press Continue, type what you do, or pick one of three r
 
 **Why this exists.** I played AI roleplay in SillyTavern every night for weeks, and every chapter or two something felt off: a line nobody would say, a fact that changed, a world that politely did whatever I asked. I kept stopping to fix it, until fixing had replaced playing. This is the setup that finally let me just read. I don't play much anymore, so I'm sharing it the way I used it: one opinionated way of playing, not a toolkit. It's a side project with no roadmap, but issues and stories about how it went are welcome.
 
+## Try it
+
+You need [SillyTavern](https://github.com/SillyTavern/SillyTavern) and [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) or [Codex](https://github.com/openai/codex), signed in with your plan. Then paste this to your agent:
+
+```
+Clone https://github.com/leonardomjq/writers-room and follow its AGENTS.md to set it up for me.
+```
+
+It sets everything up, asks you two questions about what you like to read, and starts the room. Refresh SillyTavern, accept its offer to connect, and **The Seventh Noon** opens on chapter 1:
+
+*A week into the end of the world, a voice in every head names the ten strongest people in the city. You are number seven. Whoever kills one of the ten takes everything they carry. An hour later, the tenth name is standing at your gate.*
+
+Next time, open your agent in the folder and say **play**. For anything else (a story of your own, your phone, an update, something that broke), just ask it.
+
 ## What the room does
 
 An author keeps a secret bible of the world (who wants what, what moves while you're not looking, what was planted for later) and plans a few chapters ahead. Then every chapter goes through five steps, and you watch them on the page while it works:
@@ -26,64 +40,6 @@ Step 3 is the one that changed everything. From a real draft:
 
 The author can't catch that, because the author knows too much. [More of what it catches](examples/what-the-room-catches.md), and [two full chapters](examples/) to judge for yourself.
 
-In SillyTavern you get a book style, chapter headings, a Play bar, your place kept, and a recap when you come back after a while. All of it only on writers-room stories; your other chats stay as they are.
-
-## Its opinions
-
-- **Plain prose.** The default reader wants common words and no idioms. Tell it if you want richer ones.
-- **You decide rarely, and big.** One crossroads every few chapters, and you can type anything in between.
-- **A story, not a game.** No stats or bars on screen. Power shows in what the hero can do and how the world treats them.
-- **A world that pushes back.** People want things, a no stands, and danger is real.
-- **One version of each chapter.** No swipes. If you don't like it, say why and it's written again.
-
-The default taste is web novels and progression fantasy. You change it by asking: "more romance, less fighting" works, in a Note or to your agent. [GUIDE.md](GUIDE.md) explains why each part exists, and it's the best read in here if you're into how AI writing goes wrong.
-
-## What it isn't
-
-- **Not a character chat.** No personas and no group chats. It's a novel, with you as the hero.
-- **Not a new frontend.** It's SillyTavern, plus an extension and a small engine.
-- **Not instant.** A chapter takes about 5 to 9 minutes, unless it was written ahead while you read.
-- **Not free.** It needs a Claude or ChatGPT plan, and it uses a lot of it ([Usage](#usage)). Don't buy a plan just for this before you've read the [example chapters](examples/).
-- **Not local.** Your own model plays [Private scenes](#private-scenes), but it can't run the room ([Experiments](#experiments)).
-- **Not hosted.** It runs on your computer, which has to stay on while chapters are written.
-
-## What you need
-
-- [**SillyTavern**](https://github.com/SillyTavern/SillyTavern), on the computer that runs this (tested on 1.19).
-- [**Claude Code**](https://docs.claude.com/en/docs/claude-code/overview) or [**Codex CLI**](https://github.com/openai/codex), signed in with your plan. One is enough. Claude writes the strongest chapters, on Opus; on a plan without it, setup falls back to Sonnet. Codex is solid and more plain. With both, setup spreads the jobs.
-- **Python 3.11 or newer**, on macOS or Linux (on Windows, run this and SillyTavern in WSL).
-- Optional: **your own model** in SillyTavern, for Private scenes.
-
-## Try it
-
-```bash
-git clone https://github.com/leonardomjq/writers-room.git
-cd writers-room
-python3 engine/setup.py
-```
-
-Setup finds your plan, tests it, asks two questions about your taste, and installs the extension. Or open Claude Code or Codex in the folder and say **`start`**.
-
-Start the room, and leave it running while you play:
-
-```bash
-python3 engine/play.py
-```
-
-Refresh SillyTavern and accept its offer to connect. **The Seventh Noon** opens on chapter 1: a week into the end of the world, a voice in every head names the ten strongest people in the city. You are number seven. Whoever kills one of the ten takes everything they carry. An hour later, the tenth name is standing at your gate.
-
-Reading chapter 1 costs nothing. Your first move starts the room.
-
-<details>
-<summary>Setup by hand, if setup can't find SillyTavern</summary>
-
-1. Link the `extension` folder into SillyTavern as `data/default-user/extensions/writers-room`, and set `user_dir` under `[sillytavern]` in `config.toml`.
-2. **API Connections** → Chat Completion → **Custom (OpenAI-compatible)**, URL `http://127.0.0.1:5005/v1`, model `author`, no key. Save it as a connection profile named "Author".
-3. **Import** `stories/<your story>/card.json` and open its chat.
-
-Without the extension the game still plays: send an empty message to continue, a number to pick, delete chapters to go back. You miss the Play bar, the book style, the room's steps and the facts from Private scenes.
-</details>
-
 ## Playing
 
 | On the Play bar | What it does |
@@ -91,92 +47,47 @@ Without the extension the game still plays: send an empty message to continue, a
 | **Continue** | The next chapter, usually already written |
 | **1 2 3** | At a crossroads, take that road |
 | Type anything | Your own move, any time. The author bends the plan to it |
-| **Note** | A word to the author: a question ("who is Cal again?"), or a change ("shorter chapters, more danger") that holds from then on. Or **Write this chapter again**, with your note |
+| **Note** | A question ("who is Cal again?"), a change that holds from then on ("shorter chapters, more danger"), or **Write this chapter again** |
 | **Back** | Undo the last chapter. The story goes back with it |
 | **Private** | Step out to your own model for a scene, then step back |
 
-## Private scenes
+SillyTavern reads like a novel site: a book style, chapter headings, your place kept, and a recap when you come back after a while. On a phone, the page scrolls like a web-novel site, and you can lock the screen after a move and find the chapter when you come back. It only touches writers-room stories; your other chats stay as they are.
 
-Claude and Codex won't write explicit scenes, so a chapter that reaches one ends at the door. Tap **Private** and play it on your own model: GLM, a local model, anything you use in SillyTavern. Adults only.
+**Private scenes.** Claude and Codex won't write explicit scenes, so a chapter that reaches one ends at the door. Tap Private and play it on your own model: GLM, a local model, anything you use in SillyTavern. When you step back, your model sums the scene up in plain, non-graphic facts, and only those reach the author. The scene itself never goes to Claude or Codex. Adults only.
 
-Private plays on one of your SillyTavern connection profiles. Choose which under **Extensions → writers-room**.
+## Its opinions
 
-When you tap **Back to the story**, your own model sums the scene up in plain, non-graphic facts, and only those reach the author. The scene itself never goes to Claude or Codex, with or without the extension.
+- **Plain prose.** The default reader wants common words and no idioms. Ask for richer ones if you like.
+- **You decide rarely, and big.** One crossroads every few chapters, and you can type anything in between.
+- **A story, not a game.** No stats or bars on screen. Power shows in what the hero can do and how the world treats them.
+- **A world that pushes back.** People want things, a no stands, and danger is real.
+- **One version of each chapter.** No swipes. If you don't like it, say why and it's written again.
 
-## Reading on your phone
+The default taste is web novels and progression fantasy. Change it by asking, in a Note or to your agent. [GUIDE.md](GUIDE.md) explains why each part exists, and it's the best read in here if you're into how AI writing goes wrong.
 
-On a phone, the extension switches to a reading mode like a web-novel site: the page itself scrolls, and the bars slide away as you read. You can send a move, lock the phone, and find the chapter there when you come back. It lands on the device that sent the move, so play on one device at a time.
+## What it isn't
 
-writers-room doesn't connect your phone to your computer. That's SillyTavern's own setup: your phone has to be able to open your SillyTavern, on your home network (`listen: true` and the whitelist in its `config.yaml`) or from anywhere through something like Tailscale. Never expose SillyTavern to the open internet. If you only play on the computer, you can skip all of this.
-
-## Your own story
-
-Open Claude Code or Codex in the folder, say **`new story`**, and give it a premise in a line or two. It builds the world and writes chapter 1. You can also drop a SillyTavern card or lorebook in the folder and say "use this".
-
-To change stories, set `story` in `config.toml`, restart the room, and import that story's `card.json`.
-
-## Day to day
-
-```bash
-python3 engine/play.py
-```
-
-That's all you run: then open SillyTavern and read. Ctrl+C stops it. To update:
-
-```bash
-git pull
-```
-
-Then restart the room and refresh SillyTavern. To start the demo over, delete your copy and run setup again, then open a new chat with the card:
-
-```bash
-rm -rf stories/play-seventh-noon .run
-```
-
-To remove everything, delete this folder, `data/default-user/extensions/writers-room` in SillyTavern, and the "Author" connection profile.
-
-## Usage
-
-A chapter uses roughly 250 to 350k tokens on your plan: most of it on the author's planning and checking, under 80k for the writer, reader and mender. At your plan's limit, SillyTavern gets a short note instead of a chapter; send again once it resets. A chapter written ahead is thrown away if you type a move instead, and its tokens with it. `python3 engine/run.py usage` adds up what's been used so far.
-
-It runs the official CLIs under your own login, so your provider's terms and limits apply.
+- **Not a character chat.** No personas and no group chats. It's a novel, with you as the hero.
+- **Not a new frontend.** It's SillyTavern, plus an extension and a small engine.
+- **Not instant.** A chapter takes about 5 to 9 minutes, unless it was written ahead while you read.
+- **Not free.** It uses a lot of your plan. Don't buy one just for this before you've read the [example chapters](examples/).
+- **Not local.** Your own model plays Private scenes, but it can't run the room.
+- **Not hosted.** It runs on your computer, which has to stay on while chapters are written.
 
 ## Questions
 
+**How many chapters do I get on a $20 plan?** A rough estimate: a few dozen a week on ChatGPT with Codex, and a handful per sitting on Claude, maybe 10 to 20 a week. Claude writes the strongest chapters; Codex is solid and more plain. With both, the jobs are spread across them.
+
 **Why not just a preset?** A preset changes how one model answers. It can't keep secrets from the writer, plan ahead and plant things, or have someone who knows only what you know read the chapter before you do.
 
-**How many chapters do I get on a $20 plan?** A rough estimate: a few dozen a week on ChatGPT with Codex, and a handful per sitting on Claude, maybe 10 to 20 a week. Limits change and differ by plan, so watch your usage for the first few chapters.
+**Can I run it on OpenRouter or my own model?** For Private scenes, yes. For the room, not really: a small model loses track of your move and writes too little. Your agent can try it on a strong one if you ask.
 
-**Can I run it on OpenRouter or my own API?** For Private scenes, yes. For the room, only as an [experiment](#experiments).
+**Can I make my own story?** Ask your agent for a new story and give it a premise in a line or two, or hand it a SillyTavern card or lorebook.
 
-**Does it do NSFW?** Through Private, on your own model. Chapters stop at the door. Adults only.
+**Where does my story go?** It stays on your computer. The only things sent anywhere are the prompts to your own Claude, Codex and Private models. There's no telemetry.
 
-**Where does my story go?** It stays in this folder. The only things sent anywhere are the prompts to your own Claude, Codex and Private models. There's no telemetry.
+**What do I need besides a plan?** SillyTavern and Python 3.11, on macOS or Linux (on Windows, in WSL). Your agent checks the rest.
 
-**Will it mess up my other chats?** No. It only acts on writers-room cards, and [removing it](#day-to-day) takes a minute.
+---
 
-## When something's off
-
-| You see | What to do |
-|---|---|
-| "The writers' room isn't running" | Run `python3 engine/play.py` and leave it open |
-| "This chat doesn't match the story I'm running" | Start a new chat with the story's card, or check `story` in `config.toml` |
-| "No chapter this time" | It says why. For a usage limit, send again once it resets |
-| No Play bar | Refresh SillyTavern, and check you're on a writers-room card |
-| Anything else | `.run/logs/` has a log for every step. Or ask your agent in this folder what happened |
-
-## Experiments
-
-**The whole room on a plain model.** `[author] agent = "openai"` runs every job on an OpenAI-compatible model, with no agent. It's unproven, and it needs a strong model with a context of at least 40,000 tokens: a small model on a laptop loses track of the player's move, writes too little, and takes the machine over while it works.
-
-## What's in here
-
-- `extension/`: the SillyTavern extension.
-- `engine/`: `setup.py` (first run), `play.py` (the room), `run.py` (the author's commands), `serve.py` (the endpoint SillyTavern talks to), `providers.py` (model calls), `tells.py` (the counter), `author.py` (the experiment above), `story.py`. Python standard library only.
-- `briefs/`: the instructions for the author, writer, reader, mender and second author, and the default reader.
-- `stories/`: the demo, and a template for your own.
-- `examples/`: two chapters, not edited by hand, one by Claude and one by Codex, and what the room catches.
-- `AGENTS.md` (`CLAUDE.md` links to it): the manual your agent follows.
-- `tests/`: `check.py` and `room.py` run everything against a scripted model (`fake_model.py`), with no AI and no tokens.
-
-MIT licensed.
+Everything technical (setup by hand, updating, removing it, phone access, the files) lives in [AGENTS.md](AGENTS.md), the manual your agent follows. MIT licensed.
