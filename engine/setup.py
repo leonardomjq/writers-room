@@ -31,6 +31,10 @@ def choose_providers(args):
     openai = {'base_url': args.openai_url or '', 'model': args.openai_model or '', 'api_key_env': args.openai_key_env or ''}
     if have:
         print('Found: ' + ', '.join({'claude': 'Claude Code', 'codex': 'Codex'}[t] for t in have))
+    if len(have) == 2 and not (args.author or args.writer or args.reader) and not args.yes and sys.stdin.isatty():
+        plans = ask(args, 'Both are installed. Which plans do you pay for? (claude, codex, or both)', 'both').lower()
+        if plans in ('claude', 'codex'):
+            have = [plans]                       # a tool can be signed in without a plan behind it
     usable = have + (['openai'] if openai['base_url'] and openai['model'] and args.author == 'openai' else [])
     if not usable:
         raise SystemExit('The room needs Codex or Claude Code, and neither is installed. Install one, sign in with your '

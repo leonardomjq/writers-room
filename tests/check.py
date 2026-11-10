@@ -113,6 +113,8 @@ try:
 except play.Interrupted:
     results.append(True)
     print('PASS  a move can stop a running child')
+check('the room starts outside a sandbox', {'sandboxed': play.in_sandbox()}, {'sandboxed': False})
+check('no room is running in a fresh folder', {'pid': play.running_pid()}, {'pid': None})
 try:
     run.append('../../outside', 'no')
     results.append(False)

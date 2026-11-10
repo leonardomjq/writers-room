@@ -392,7 +392,8 @@ async function connect() {
         await loadStatus();
         const port = status?.port || 5005;
         if (!hasAuthor()) {
-            if (!profiles().length) await runCommand('/profile-create My model');   // keeps what they had, for Private
+            // keep what they had, for Private (a fresh SillyTavern's Horde default is not a model of theirs)
+            if (!profiles().length && ctx().mainApi !== 'koboldhorde') await runCommand('/profile-create My model');
             await runCommand('/api custom');
             await runCommand(`/api-url api=custom connect=false http://127.0.0.1:${port}/v1`);
             await runCommand('/model quiet=true author');

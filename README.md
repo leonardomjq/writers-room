@@ -69,7 +69,7 @@ The default taste is web novels and progression fantasy. Change it by asking, in
 
 - **Not a character chat.** No personas and no group chats. It's a novel, with you as the hero.
 - **Not a new frontend.** It's SillyTavern, plus an extension and a small engine.
-- **Not instant.** A chapter takes about 5 to 9 minutes, unless it was written ahead while you read.
+- **Not instant.** A chapter takes about 5 minutes (a few more on Claude alone), unless it was written ahead while you read.
 - **Not free.** It uses a lot of your plan. Don't buy one just for this before you've read the [example chapters](examples/).
 - **Not local.** Your own model plays Private scenes, but it can't run the room.
 - **Not hosted.** It runs on your computer, which has to stay on while chapters are written.

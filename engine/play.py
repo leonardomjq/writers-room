@@ -377,13 +377,21 @@ PID = 'play.pid'
 
 
 def running_pid():
-    """The pid of a room already running in this folder, or None."""
+    """The pid of a room already running in this folder, or None (a pid left over from before a restart may now
+    belong to some other program, so the process must still be this one)."""
     pid = story.read_json(story.run_path(PID))
     try:
-        os.kill(int(pid), 0)
-        return int(pid)
+        pid = int(pid)
+        os.kill(pid, 0)
+    except PermissionError:
+        pass                                          # alive, but a sandbox may hide it from us
     except (TypeError, ValueError, OSError):
         return None
+    try:
+        ps = subprocess.run(['ps', '-p', str(pid), '-o', 'command='], capture_output=True, text=True)
+    except OSError:
+        return pid                                    # can't look: trust the pid file
+    return pid if ps.returncode != 0 or 'engine/play.py' in ps.stdout else None
 
 
 def background():
@@ -408,7 +416,11 @@ def stop_room():
     if not pid:
         print('The room is not running.')
         return
-    os.kill(pid, signal.SIGTERM)
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except PermissionError:
+        raise SystemExit('Could not stop the room from here (a sandbox blocks it). Approve running '
+                         '`python3 engine/play.py --stop` outside the sandbox, or press Ctrl+C where it runs.')
     for _ in range(30):
         time.sleep(0.3)
         if not running_pid():
@@ -416,13 +428,27 @@ def stop_room():
     print('The room is stopped.')
 
 
-IN_SANDBOX = ('The room cannot run inside Codex\'s sandbox: it runs Codex itself for every chapter, and a sandbox '
-              'cannot open another one. Start it outside the sandbox: approve running `python3 engine/play.py '
-              '--background` outside it when Codex asks, or run `python3 engine/play.py` in a terminal.')
+IN_SANDBOX = ('The room cannot run inside an agent\'s sandbox: it runs Codex or Claude Code for every chapter, and a '
+              'sandbox cannot open another one. Start it outside the sandbox: approve running `python3 engine/play.py '
+              '--background` outside it when your agent asks, or run `python3 engine/play.py` in a terminal.')
+
+
+def in_sandbox():
+    """Is this process inside a sandbox that would stop the agents the room runs? On macOS, try what they do: open a
+    sandbox. Elsewhere, trust Codex's own mark."""
+    if sys.platform == 'darwin' and os.path.exists('/usr/bin/sandbox-exec'):
+        try:
+            return subprocess.run(['/usr/bin/sandbox-exec', '-p', '(version 1)(allow default)', '/usr/bin/true'],
+                                  capture_output=True, timeout=10).returncode != 0
+        except PermissionError:
+            return True                               # not even allowed to try: that is a sandbox
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+    return bool(os.environ.get('CODEX_SANDBOX'))
 
 
 def main():
-    if os.environ.get('CODEX_SANDBOX') and '--stop' not in sys.argv:
+    if '--stop' not in sys.argv and in_sandbox():
         raise SystemExit(IN_SANDBOX)
     if '--background' in sys.argv:
         return background()
